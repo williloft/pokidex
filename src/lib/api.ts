@@ -1,4 +1,4 @@
-import type { DexEntryText, EvolutionNode, PokemonDetail } from './types'
+import type { DexEntryText, EvolutionNode, LearnedMove, LearnMethod, PokemonDetail } from './types'
 
 /**
  * Everything the grid needs ships as static JSON. Only the detail page reaches
@@ -11,9 +11,25 @@ import type { DexEntryText, EvolutionNode, PokemonDetail } from './types'
 
 const BASE = 'https://pokeapi.co/api/v2'
 const CACHE_PREFIX = 'pokedex:detail:'
-const CACHE_VERSION = 'v3'
+// Bumped when the shape changes, so old cached entries are simply ignored
+// rather than arriving without the fields the page now expects.
+const CACHE_VERSION = 'v4'
 
 const memory = new Map<number, PokemonDetail>()
+
+/**
+ * Version groups in release order, handed over once when the dex loads.
+ *
+ * Module state rather than a prop because every caller of fetchDetail would
+ * otherwise have to thread the same constant through — including a prefetch
+ * fired from a card deep in the grid, which would quietly cache a learnset
+ * built from the wrong game if it ever passed the wrong one.
+ */
+let versionGroupOrder: readonly string[] = []
+
+export function setVersionGroupOrder(order: readonly string[]): void {
+  versionGroupOrder = order
+}
 
 function readCache(id: number): PokemonDetail | null {
   const cached = memory.get(id)
@@ -112,6 +128,85 @@ function collectEntries(
   return [...byText.values()].reverse()
 }
 
+interface RawMoveEntry {
+  move: { name: string }
+  version_group_details: Array<{
+    level_learned_at: number
+    version_group: { name: string }
+    move_learn_method: { name: string }
+  }>
+}
+
+const KNOWN_METHODS: LearnMethod[] = ['level-up', 'machine', 'egg', 'tutor']
+
+/**
+ * The learnset from the newest game this Pokémon appears in.
+ *
+ * The API repeats the move list once per game, and the lists disagree — moves
+ * come and go and get re-levelled every generation. Merging twenty of them
+ * would produce a learnset no game has ever had, so we take the newest one it
+ * actually appears in and say which that is.
+ *
+ * `order` is the release order shipped with the dex; without it we cannot tell
+ * which version group is newest and fall back to whatever the API listed last.
+ */
+function collectLearnset(raw: RawMoveEntry[], order: readonly string[]): LearnedMove[] {
+  const rank = new Map(order.map((name, index) => [name, index]))
+  const rankOf = (name: string) => rank.get(name) ?? -1
+
+  let newest = -1
+  let newestName: string | null = null
+  for (const entry of raw) {
+    for (const detail of entry.version_group_details) {
+      const value = rankOf(detail.version_group.name)
+      if (value > newest) {
+        newest = value
+        newestName = detail.version_group.name
+      }
+    }
+  }
+  if (newestName === null) return []
+
+  const learnset: LearnedMove[] = []
+  for (const entry of raw) {
+    const detail = entry.version_group_details.find(
+      (line) => line.version_group.name === newestName,
+    )
+    if (!detail) continue
+
+    const method = detail.move_learn_method.name as LearnMethod
+    learnset.push({
+      name: entry.move.name,
+      method: KNOWN_METHODS.includes(method) ? method : 'other',
+      level: detail.level_learned_at ?? 0,
+    })
+  }
+
+  return learnset
+}
+
+const learnsetMemory = new Map<number, LearnedMove[]>()
+
+/**
+ * The learnset for one specific variant.
+ *
+ * Keyed by the variant's own id rather than the species, because a regional
+ * form does not learn what the base form learns — Alolan Raichu is not Raichu
+ * with different colours.
+ */
+export async function fetchLearnset(id: number, signal?: AbortSignal): Promise<LearnedMove[]> {
+  const cached = learnsetMemory.get(id)
+  if (cached) return cached
+
+  const res = await fetch(`${BASE}/pokemon/${id}`, { signal })
+  if (!res.ok) throw new Error(`Could not load moves for ${id} (${res.status})`)
+
+  const pokemon = await res.json()
+  const learnset = collectLearnset((pokemon.moves ?? []) as RawMoveEntry[], versionGroupOrder)
+  learnsetMemory.set(id, learnset)
+  return learnset
+}
+
 export async function fetchDetail(id: number, signal?: AbortSignal): Promise<PokemonDetail> {
   const cached = readCache(id)
   if (cached) return cached
@@ -120,13 +215,26 @@ export async function fetchDetail(id: number, signal?: AbortSignal): Promise<Pok
   if (!speciesRes.ok) throw new Error(`Could not load species ${id} (${speciesRes.status})`)
   const species = await speciesRes.json()
 
+  // The chain and the learnset are independent of each other, so there is no
+  // reason to wait for one before asking for the other.
+  const [chainRes, pokemonRes] = await Promise.all([
+    species.evolution_chain?.url
+      ? fetch(species.evolution_chain.url, { signal }).catch(() => null)
+      : Promise.resolve(null),
+    fetch(`${BASE}/pokemon/${id}`, { signal }).catch(() => null),
+  ])
+
   let evolution: EvolutionNode | null = null
-  if (species.evolution_chain?.url) {
-    const chainRes = await fetch(species.evolution_chain.url, { signal })
-    if (chainRes.ok) {
-      const chain = await chainRes.json()
-      evolution = toEvolutionTree(chain.chain as RawChainLink)
-    }
+  if (chainRes?.ok) {
+    const chain = await chainRes.json()
+    evolution = toEvolutionTree(chain.chain as RawChainLink)
+  }
+
+  // A missing learnset is a thinner page, not a broken one.
+  let learnset: LearnedMove[] = []
+  if (pokemonRes?.ok) {
+    const pokemon = await pokemonRes.json()
+    learnset = collectLearnset((pokemon.moves ?? []) as RawMoveEntry[], versionGroupOrder)
   }
 
   const detail: PokemonDetail = {
@@ -139,6 +247,7 @@ export async function fetchDetail(id: number, signal?: AbortSignal): Promise<Pok
     eggGroups: (species.egg_groups ?? []).map((g: { name: string }) => g.name),
     captureRate: species.capture_rate ?? 0,
     growthRate: species.growth_rate?.name ?? null,
+    learnset,
   }
 
   writeCache(id, detail)

@@ -13,21 +13,42 @@ export interface TeamEntry {
   id: number
   /** API name of the chosen form, or null for the base form. */
   form: string | null
+  /**
+   * Chosen moves, or null to run whatever the form brings by default.
+   *
+   * Null rather than a copy of the defaults on purpose: a slot that has not
+   * been edited should follow the dataset, so a rebuild that improves the
+   * default movesets reaches teams that were saved months ago.
+   */
+  moves: string[] | null
 }
 
 /** Everyone listening for team changes, so two components never disagree. */
 const listeners = new Set<(entries: TeamEntry[]) => void>()
 let current: TeamEntry[] | null = null
 
-/** Teams saved before forms existed were a bare array of ids. */
+const asMoveList = (value: unknown): string[] | null =>
+  Array.isArray(value) && value.every((name) => typeof name === 'string')
+    ? (value as string[]).slice(0, 4)
+    : null
+
+/**
+ * Teams saved before forms existed were a bare array of ids, and teams saved
+ * before movesets had no moves field. Both still load; they just fall back to
+ * the base form and the default moveset.
+ */
 function migrate(parsed: unknown): TeamEntry[] {
   if (!Array.isArray(parsed)) return []
   return parsed
     .map((item): TeamEntry | null => {
-      if (typeof item === 'number') return { id: item, form: null }
+      if (typeof item === 'number') return { id: item, form: null, moves: null }
       if (item && typeof item === 'object' && typeof (item as TeamEntry).id === 'number') {
         const entry = item as TeamEntry
-        return { id: entry.id, form: typeof entry.form === 'string' ? entry.form : null }
+        return {
+          id: entry.id,
+          form: typeof entry.form === 'string' ? entry.form : null,
+          moves: asMoveList(entry.moves),
+        }
       }
       return null
     })
@@ -67,6 +88,8 @@ export interface TeamApi {
   /** Add, remove, or switch the slot to this form. */
   toggle: (id: number, form: string | null) => void
   setForm: (id: number, form: string | null) => void
+  /** Pass null to go back to the form's default moveset. */
+  setMoves: (id: number, moves: string[] | null) => void
   remove: (id: number) => void
   clear: () => void
 }
@@ -86,18 +109,24 @@ export function useTeam(): TeamApi {
     const existing = entries.find((entry) => entry.id === id)
 
     if (!existing) {
-      if (entries.length < TEAM_SIZE) write([...entries, { id, form }])
+      if (entries.length < TEAM_SIZE) write([...entries, { id, form, moves: null }])
       return
     }
 
     // Already fielding this species: same form means "take it off", a different
     // one means "run this variant instead".
     if (existing.form === form) write(entries.filter((entry) => entry.id !== id))
-    else write(entries.map((entry) => (entry.id === id ? { ...entry, form } : entry)))
+    else write(entries.map((entry) => (entry.id === id ? { ...entry, form, moves: null } : entry)))
   }, [])
 
+  // A regional form does not always learn what the base form learns, so a
+  // hand-picked moveset cannot be assumed to survive the swap.
   const setForm = useCallback((id: number, form: string | null) => {
-    write(read().map((entry) => (entry.id === id ? { ...entry, form } : entry)))
+    write(read().map((entry) => (entry.id === id ? { ...entry, form, moves: null } : entry)))
+  }, [])
+
+  const setMoves = useCallback((id: number, moves: string[] | null) => {
+    write(read().map((entry) => (entry.id === id ? { ...entry, moves } : entry)))
   }, [])
 
   const remove = useCallback((id: number) => {
@@ -121,6 +150,7 @@ export function useTeam(): TeamApi {
     stateOf,
     toggle,
     setForm,
+    setMoves,
     remove,
     clear,
   }

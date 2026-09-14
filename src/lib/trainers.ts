@@ -1,5 +1,5 @@
 import { makeBattler, type Battler, type Difficulty } from './battle'
-import { resolveForm, statTotal, type Pokemon } from './types'
+import { resolveForm, statTotal, type MoveIndex, type Pokemon } from './types'
 
 export interface TrainerBlueprint {
   id: string
@@ -68,6 +68,7 @@ export function buildTrainer(
   blueprint: TrainerBlueprint,
   dex: readonly Pokemon[],
   difficulty: Difficulty,
+  moves: MoveIndex = {},
   roll: () => number = Math.random,
 ): Trainer {
   const pool = candidatesFor(dex, blueprint.theme, difficulty)
@@ -89,7 +90,7 @@ export function buildTrainer(
     blueprint,
     difficulty,
     team: picked.map((entry, index) =>
-      makeBattler(entry, resolveForm(entry, null), `foe-${entry.id}-${index}`),
+      makeBattler(entry, resolveForm(entry, null), `foe-${entry.id}-${index}`, moves),
     ),
   }
 }

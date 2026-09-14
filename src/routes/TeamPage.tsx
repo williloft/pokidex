@@ -1,7 +1,8 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useDex } from '../App'
 import { FormSwatches } from '../components/FormSwatches'
+import { MovesetEditor, moveLabel } from '../components/MovesetEditor'
 import { Sprite } from '../components/Sprite'
 import { StatBars } from '../components/StatBars'
 import { Suggestions } from '../components/Suggestions'
@@ -26,6 +27,7 @@ interface Props {
   teamFull: boolean
   onRemove: (id: number) => void
   onSetForm: (id: number, form: string | null) => void
+  onSetMoves: (id: number, moves: string[] | null) => void
   onAdd: (id: number, form: string | null) => void
 }
 
@@ -49,8 +51,17 @@ const NOTICE_TEXT: Record<'mega' | 'gmax', string> = {
   gmax: 'Only one Pokémon can Dynamax per battle, so only one of these will ever transform.',
 }
 
-export function TeamPage({ team, shiny, teamFull, onRemove, onSetForm, onAdd }: Props) {
-  const { pokedex, typeData } = useDex()
+export function TeamPage({
+  team,
+  shiny,
+  teamFull,
+  onRemove,
+  onSetForm,
+  onSetMoves,
+  onAdd,
+}: Props) {
+  const { pokedex, typeData, moves: moveIndex } = useDex()
+  const [editing, setEditing] = useState<number | null>(null)
   useDocumentTitle(team.length > 0 ? `Team (${team.length}) · Pokédex` : 'Team · Pokédex')
 
   const suggestions = useMemo(
@@ -58,6 +69,7 @@ export function TeamPage({ team, shiny, teamFull, onRemove, onSetForm, onAdd }: 
     [pokedex.pokemon, team, typeData],
   )
   const notices = useMemo(() => teamNotices(team), [team])
+  const editingMember = team.find((member) => member.pokemon.id === editing) ?? null
 
   if (team.length === 0) {
     return (
@@ -100,7 +112,8 @@ export function TeamPage({ team, shiny, teamFull, onRemove, onSetForm, onAdd }: 
       ))}
 
       <ul className="team-page__roster">
-        {team.map(({ pokemon, view }) => {
+        {team.map((member) => {
+          const { pokemon, view } = member
           const views = selectableViews(pokemon)
           return (
             <li key={pokemon.id}>
@@ -132,17 +145,67 @@ export function TeamPage({ team, shiny, teamFull, onRemove, onSetForm, onAdd }: 
                 name={displayName(pokemon.name)}
               />
 
-              <button
-                type="button"
-                className="chip chip--ghost"
-                onClick={() => onRemove(pokemon.id)}
-              >
-                Remove
-              </button>
+              {/* What it will actually fight with, and the way in to change it. */}
+              <ul className="team-page__moves">
+                {member.moves.length > 0 ? (
+                  member.moves.map((name) => {
+                    const move = moveIndex[name]
+                    return (
+                      <li key={name}>
+                        <span
+                          className="team-page__move"
+                          style={
+                            {
+                              '--move-accent': `var(--type-${move?.type ?? 'normal'})`,
+                            } as React.CSSProperties
+                          }
+                        >
+                          {moveLabel(name)}
+                        </span>
+                      </li>
+                    )
+                  })
+                ) : (
+                  <li>
+                    <span className="team-page__move team-page__move--none">No moves</span>
+                  </li>
+                )}
+              </ul>
+
+              <div className="team-page__actions">
+                <button
+                  type="button"
+                  className="chip"
+                  onClick={() => setEditing(pokemon.id)}
+                  disabled={Object.keys(moveIndex).length === 0}
+                >
+                  Edit moves
+                </button>
+                <button
+                  type="button"
+                  className="chip chip--ghost"
+                  onClick={() => onRemove(pokemon.id)}
+                >
+                  Remove
+                </button>
+              </div>
             </li>
           )
         })}
       </ul>
+
+      {editingMember ? (
+        <MovesetEditor
+          member={editingMember}
+          moveIndex={moveIndex}
+          onSave={(moves) => {
+            onSetMoves(editingMember.pokemon.id, moves)
+            setEditing(null)
+          }}
+          onReset={() => onSetMoves(editingMember.pokemon.id, null)}
+          onClose={() => setEditing(null)}
+        />
+      ) : null}
 
       <section className="panel">
         <h2>What this team is missing</h2>

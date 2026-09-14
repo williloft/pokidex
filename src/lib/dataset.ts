@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react'
-import type { Pokedex, TypeData } from './types'
+import { setVersionGroupOrder } from './api'
+import type { MoveIndex, Pokedex, TypeData } from './types'
 
 export interface Dataset {
   pokedex: Pokedex
   typeData: TypeData
   /** Ability name -> description. Empty if the data file predates them. */
   abilities: Record<string, string>
+  /** Move name -> stats. Empty if the data file predates them. */
+  moves: MoveIndex
   /** name -> entry, for O(1) lookups on the detail route. */
   byName: Map<string, Pokedex['pokemon'][number]>
   byId: Map<number, Pokedex['pokemon'][number]>
@@ -23,12 +26,13 @@ let cached: Promise<Dataset> | null = null
  * the browser can cache — not a thousand calls to a public API.
  */
 async function load(): Promise<Dataset> {
-  const [pokedexRes, typeRes, abilityRes] = await Promise.all([
+  const [pokedexRes, typeRes, abilityRes, moveRes] = await Promise.all([
     fetch(`${import.meta.env.BASE_URL}data/pokedex.json`),
     fetch(`${import.meta.env.BASE_URL}data/type-chart.json`),
     // Added later than the other two, so a stale data directory should degrade
     // to "no descriptions" rather than taking the whole app down.
     fetch(`${import.meta.env.BASE_URL}data/abilities.json`).catch(() => null),
+    fetch(`${import.meta.env.BASE_URL}data/moves.json`).catch(() => null),
   ])
 
   const missing = new Error('Dex data is missing. Run `npm run fetch:data` to generate it.')
@@ -58,11 +62,17 @@ async function load(): Promise<Dataset> {
   // Added after the other two, so an older data directory degrades to "no
   // descriptions" rather than taking the whole app down.
   const abilities = (await readJson<Record<string, string>>(abilityRes)) ?? {}
+  const moves = (await readJson<MoveIndex>(moveRes)) ?? {}
+
+  // The detail fetch needs release order to pick a Pokémon's newest learnset,
+  // and it ships with the dex rather than being re-derived per request.
+  setVersionGroupOrder(pokedex.versionGroups ?? [])
 
   return {
     pokedex,
     typeData,
     abilities,
+    moves,
     byName: new Map(pokedex.pokemon.map((entry) => [entry.name, entry])),
     byId: new Map(pokedex.pokemon.map((entry) => [entry.id, entry])),
   }

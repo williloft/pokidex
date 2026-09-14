@@ -22,6 +22,7 @@ const form = (id: number, name: string, label: string, types: string[]): Pokemon
   height: 17,
   weight: 1005,
   abilities: [],
+  moves: [],
 })
 
 const entry = (
@@ -41,6 +42,7 @@ const entry = (
   abilities: [],
   generation,
   forms,
+  moves: [],
 })
 
 const dex: Pokemon[] = [

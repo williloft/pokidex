@@ -20,9 +20,21 @@ npm run fetch:data   # pulls the dex from PokéAPI into public/data (once)
 npm run dev
 ```
 
-`fetch:data` writes `public/data/pokedex.json` and `public/data/type-chart.json`.
-**Commit both.** The app will not start without them, and committing them means
-deployments never touch PokéAPI at build time.
+`fetch:data` writes four files into `public/data`:
+
+| File | What is in it |
+| --- | --- |
+| `pokedex.json` | One entry per species, its alternate forms, and the four moves each brings to a battle |
+| `type-chart.json` | Attack-vs-defend multipliers |
+| `abilities.json` | Ability name → description |
+| `moves.json` | Every move's type, damage class, power, accuracy, PP and priority |
+
+**Commit all four.** The app will not start without the first two, and
+committing them means deployments never touch PokéAPI at build time.
+
+Learnsets are the exception: the full list of what a Pokémon can learn runs to
+several megabytes across the dex, so the detail page and the moveset editor
+fetch it for the one Pokémon on screen and cache the result in the browser.
 
 | Script | What it does |
 | --- | --- |

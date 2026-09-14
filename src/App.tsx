@@ -24,7 +24,7 @@ export function useDex(): Dataset {
 export default function App() {
   const state = useDataset()
   const [shiny, toggleShiny] = useShiny()
-  const { team, stateOf, isFull, toggle, setForm, remove, clear } = useTeam()
+  const { team, stateOf, isFull, toggle, setForm, setMoves, remove, clear } = useTeam()
   const location = useLocation()
 
   const dataset = state.status === 'ready' ? state.data : null
@@ -35,7 +35,11 @@ export default function App() {
     return team
       .map((entry) => {
         const pokemon = dataset.byId.get(entry.id)
-        return pokemon ? { pokemon, view: resolveForm(pokemon, entry.form) } : null
+        if (!pokemon) return null
+        const view = resolveForm(pokemon, entry.form)
+        // A slot that has never been edited follows the dataset, so a rebuild
+        // that improves the default movesets reaches teams saved long ago.
+        return { pokemon, view, moves: entry.moves ?? view.moves ?? [] }
       })
       .filter((member): member is TeamMember => member !== null)
   }, [dataset, team])
@@ -120,6 +124,7 @@ export default function App() {
                     teamFull={isFull}
                     onRemove={remove}
                     onSetForm={setForm}
+                    onSetMoves={setMoves}
                     onAdd={toggle}
                   />
                 }

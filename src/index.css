@@ -2221,3 +2221,373 @@ a {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Moves: the battle move pad, the moveset editor, and the dex learnset
+   --------------------------------------------------------------------------- */
+
+.chip__count {
+  margin-inline-start: 4px;
+  opacity: 0.7;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Four buttons, laid out the way the handhelds do it. */
+.movepad {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.movepad__move {
+  --move-accent: var(--border);
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-inline-start: 4px solid var(--move-accent);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.movepad__move:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--move-accent) 12%, var(--bg-sunken));
+}
+
+/* Out of PP: still readable, clearly not pressable. */
+.movepad__move:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.movepad__name {
+  font-family: var(--font-display);
+  font-weight: 650;
+}
+
+.movepad__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.movepad__class,
+.movelist__class,
+.learnset__class {
+  color: var(--text-dim);
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.movepad__numbers {
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.movepad--struggle {
+  display: block;
+}
+
+/* The moveset editor, as a centred sheet over the team page. */
+.sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+}
+
+.sheet__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgb(0 0 0 / 0.6);
+  backdrop-filter: blur(3px);
+}
+
+.sheet__panel {
+  position: relative;
+  display: grid;
+  gap: 12px;
+  width: min(720px, 100%);
+  max-height: min(88vh, 900px);
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow);
+  overflow-y: auto;
+}
+
+.sheet__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sheet__header h2 {
+  margin: 0;
+}
+
+.sheet__tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sheet__tools .finder__input {
+  flex: 1;
+}
+
+.sheet__footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 4px;
+}
+
+.moveset {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.moveset__slot {
+  --move-accent: var(--border);
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-inline-start: 4px solid var(--move-accent);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* The slot the next pick will land in. */
+.moveset__slot--active {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.moveset__index {
+  color: var(--text-dim);
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.moveset__name {
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+
+.moveset__numbers {
+  grid-column: 2 / -1;
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.moveset__empty {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.movelist {
+  display: grid;
+  gap: 4px;
+  max-height: 46vh;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.movelist__row {
+  --move-accent: var(--border);
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) auto auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-inline-start: 3px solid var(--move-accent);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.86rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.movelist__row:hover {
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--move-accent) 10%, var(--bg-sunken));
+}
+
+/* Already in the set — clicking again just moves it to the selected slot. */
+.movelist__row--on {
+  border-color: var(--accent);
+}
+
+.movelist__name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.movelist__stab {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--accent);
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.movelist__numbers,
+.movelist__how {
+  color: var(--text-dim);
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* The learnset table on the detail page. */
+.learnset {
+  margin-top: 12px;
+  max-height: 520px;
+  overflow: auto;
+}
+
+.learnset table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.learnset th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 8px 10px;
+  background: var(--bg-raised);
+  color: var(--text-dim);
+  font-size: 0.72rem;
+  font-weight: 650;
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.learnset td {
+  padding: 7px 10px;
+  border-top: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+
+.learnset__level {
+  color: var(--text-dim);
+  font-family: var(--font-display);
+  font-weight: 650;
+}
+
+.learnset__name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 550;
+}
+
+/* Same-type as the variant on show, so the useful rows stand out. */
+.learnset__stab td {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+/* The moves listed under each team member. */
+.team-page__moves {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.team-page__move {
+  --move-accent: var(--border);
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--move-accent) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--move-accent) 45%, transparent);
+  color: var(--text);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.team-page__move--none {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.team-page__actions {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+@media (max-width: 760px) {
+  .movepad,
+  .moveset {
+    grid-template-columns: 1fr;
+  }
+
+  .movelist__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 4px;
+  }
+
+  .movelist__class,
+  .movelist__how {
+    display: none;
+  }
+
+  .sheet {
+    padding: 8px;
+  }
+
+  .sheet__panel {
+    max-height: 92vh;
+    padding: 14px;
+  }
+}

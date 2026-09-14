@@ -33,6 +33,7 @@ const member = (name: string, types: string[], speed = 50): TeamMember => {
     abilities: [],
     generation: 1,
     forms: [],
+    moves: [],
   }
   return {
     pokemon,
@@ -47,7 +48,9 @@ const member = (name: string, types: string[], speed = 50): TeamMember => {
       height: 10,
       weight: 100,
       abilities: [],
+      moves: [],
     },
+    moves: [],
   }
 }
 

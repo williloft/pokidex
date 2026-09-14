@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom'
 import { useDex } from '../App'
 import { Sprite } from '../components/Sprite'
 import { TypeBadge } from '../components/TypeBadge'
-import { isDown, makeBattler, type Difficulty } from '../lib/battle'
-import { sendIn, startBattle, takeTurn, type BattleState } from '../lib/battleState'
+import { isDown, makeBattler, STRUGGLE, usableMoves, type Difficulty } from '../lib/battle'
+import { sendIn, startBattle, takeTurn, type BattleState, type PlayerAction } from '../lib/battleState'
 import { dexHref } from '../lib/dexLocation'
 import { buildTrainer, pickBlueprint, TRAINERS, type TrainerBlueprint } from '../lib/trainers'
 import type { TeamMember } from '../lib/types'
@@ -31,8 +31,14 @@ function HealthBar({ battler }: { battler: { hp: number; maxHp: number } }) {
   )
 }
 
+const moveLabel = (name: string): string =>
+  name
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+
 export function BattlePage({ team, shiny }: Props) {
-  const { pokedex, typeData } = useDex()
+  const { pokedex, typeData, moves: moveIndex } = useDex()
   useDocumentTitle('Battle · Pokédex')
 
   const [difficulty, setDifficulty] = useState<Difficulty>('normal')
@@ -52,14 +58,20 @@ export function BattlePage({ team, shiny }: Props) {
   }
 
   const begin = () => {
-    const trainer = buildTrainer(blueprint, pokedex.pokemon, difficulty)
+    const trainer = buildTrainer(blueprint, pokedex.pokemon, difficulty, moveIndex)
     const party = team.map((member, index) =>
-      makeBattler(member.pokemon, member.view, `you-${member.pokemon.id}-${index}`),
+      makeBattler(
+        member.pokemon,
+        member.view,
+        `you-${member.pokemon.id}-${index}`,
+        moveIndex,
+        member.moves,
+      ),
     )
     setBattle(startBattle(party, trainer))
   }
 
-  const act = (action: { kind: 'attack' } | { kind: 'switch'; index: number }) => {
+  const act = (action: PlayerAction) => {
     setBattle((current) =>
       current ? takeTurn(current, action, { chart: typeData.chart, difficulty }) : current,
     )
@@ -200,9 +212,47 @@ export function BattlePage({ team, shiny }: Props) {
           <>
             <h2>{battle.phase === 'must-switch' ? 'Send in your next' : 'Your move'}</h2>
             {battle.phase === 'choosing' ? (
-              <button type="button" className="button" onClick={() => act({ kind: 'attack' })}>
-                Attack
-              </button>
+              usableMoves(you).length > 0 ? (
+                <ul className="movepad">
+                  {you.moves.map((slot, index) => (
+                    <li key={slot.move.name}>
+                      <button
+                        type="button"
+                        className="movepad__move"
+                        disabled={slot.pp <= 0}
+                        title={slot.move.effect ?? undefined}
+                        onClick={() => act({ kind: 'move', index })}
+                        style={
+                          { '--move-accent': `var(--type-${slot.move.type})` } as React.CSSProperties
+                        }
+                      >
+                        <span className="movepad__name">{moveLabel(slot.move.name)}</span>
+                        <span className="movepad__meta">
+                          <TypeBadge type={slot.move.type} />
+                          <span className="movepad__class">{slot.move.damageClass}</span>
+                        </span>
+                        <span className="movepad__numbers">
+                          {slot.move.power} pwr · {slot.move.accuracy ?? '—'} acc · {slot.pp}/
+                          {slot.maxPp} PP
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                // Nothing left to throw. Struggle is the only legal action, and
+                // it hurts — the same corner the games put you in.
+                <div className="movepad movepad--struggle">
+                  <button
+                    type="button"
+                    className="movepad__move"
+                    onClick={() => act({ kind: 'move', index: -1 })}
+                  >
+                    <span className="movepad__name">Struggle</span>
+                    <span className="movepad__numbers">{STRUGGLE.effect}</span>
+                  </button>
+                </div>
+              )
             ) : null}
 
             <ul className="bench">

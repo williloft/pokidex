@@ -128,6 +128,142 @@ function describeForm(formName, speciesName) {
   return { label, category }
 }
 
+/**
+ * Version groups in release order, newest last.
+ *
+ * A Pokémon's move list is repeated once per game it has appeared in, and the
+ * lists disagree — moves get added, removed and re-levelled every generation.
+ * Rather than merge twenty contradictory learnsets, we keep the newest one each
+ * Pokémon actually appears in, which is the one a player would recognise.
+ */
+async function buildVersionGroupRank() {
+  const { results } = await get('version-group?limit=200')
+  const rank = new Map()
+  results.forEach((group, index) => rank.set(group.name, index))
+  return rank
+}
+
+/** The learnset from the newest game this entry appears in. */
+function learnset(p, vgRank) {
+  let newest = -1
+  for (const entry of p.moves) {
+    for (const detail of entry.version_group_details) {
+      const rank = vgRank.get(detail.version_group.name) ?? -1
+      if (rank > newest) newest = rank
+    }
+  }
+  if (newest < 0) return []
+
+  const out = []
+  for (const entry of p.moves) {
+    const detail = entry.version_group_details.find(
+      (d) => (vgRank.get(d.version_group.name) ?? -1) === newest,
+    )
+    if (!detail) continue
+    out.push({
+      name: entry.move.name,
+      method: detail.move_learn_method.name,
+      level: detail.level_learned_at ?? 0,
+    })
+  }
+  return out
+}
+
+/**
+ * Move data, keyed by name.
+ *
+ * Status moves are kept too — the dex page lists everything a Pokémon learns,
+ * so leaving them out would put holes in the learnset. The battle is what
+ * filters them, not the dataset.
+ */
+async function buildMoves(names) {
+  const moves = {}
+
+  await pool(
+    [...names].sort(),
+    async (name) => {
+      const move = await get(`move/${name}`)
+
+      const english = (entry) => entry.language.name === 'en'
+      const effect = move.effect_entries?.find(english)
+      const description = effect?.short_effect ?? effect?.effect ?? null
+
+      moves[name] = {
+        name,
+        type: move.type?.name ?? 'normal',
+        damageClass: move.damage_class?.name ?? 'status',
+        // Status moves report null power; 0 says the same thing without a
+        // nullable number spreading through the damage maths.
+        power: typeof move.power === 'number' ? move.power : 0,
+        // null means it never misses, and the games mean that literally.
+        accuracy: typeof move.accuracy === 'number' ? move.accuracy : null,
+        pp: move.pp ?? 10,
+        priority: move.priority ?? 0,
+        effect: description
+          ? description.replace(/[\n\f­]/g, ' ').replace(/\s+/g, ' ').trim()
+          : null,
+      }
+    },
+    (done, total) => process.stdout.write(`\r  ${done}/${total}`),
+  )
+  process.stdout.write('\n')
+
+  return moves
+}
+
+/**
+ * Anything above this is a move with a catch we do not simulate — a recharge
+ * turn, heavy recoil, or fainting the user. Including them would make them
+ * strictly better here than they are in the games, so the cutoff keeps the
+ * default movesets honest.
+ */
+const MAX_POWER = 120
+const MOVESET_SIZE = 4
+
+/**
+ * Pick the four moves a Pokémon shows up with.
+ *
+ * Highest expected damage first, weighted for same-type bonus and for whichever
+ * attacking stat it is actually built around — then one move per type, so a
+ * Charizard arrives with coverage rather than four flavours of fire.
+ */
+function chooseMoveset(entry, learnable, moves) {
+  const usable = learnable
+    .map((line) => moves[line.name])
+    .filter(
+      (move) =>
+        move && move.damageClass !== 'status' && move.power > 0 && move.power <= MAX_POWER,
+    )
+
+  if (usable.length === 0) return []
+
+  const physical = entry.stats.attack >= entry.stats['special-attack']
+  const score = (move) => {
+    let value = (move.power * (move.accuracy ?? 100)) / 100
+    if (entry.types.includes(move.type)) value *= 1.5
+    if ((move.damageClass === 'physical') === physical) value *= 1.3
+    return value
+  }
+
+  const ranked = [...usable].sort((a, b) => score(b) - score(a) || a.name.localeCompare(b.name))
+
+  const picked = []
+  const seenTypes = new Set()
+  for (const move of ranked) {
+    if (seenTypes.has(move.type)) continue
+    seenTypes.add(move.type)
+    picked.push(move.name)
+    if (picked.length === MOVESET_SIZE) return picked
+  }
+
+  // Fewer than four types available: fill from what is left.
+  for (const move of ranked) {
+    if (picked.length === MOVESET_SIZE) break
+    if (!picked.includes(move.name)) picked.push(move.name)
+  }
+  return picked
+}
+
 /** Pull the fields we keep out of a raw /pokemon response. */
 function shape(p) {
   const stats = {}
@@ -199,6 +335,9 @@ async function main() {
   console.log('→ generations')
   const { map: genMap, labels: generations } = await buildGenerationMap()
 
+  console.log('→ version groups')
+  const vgRank = await buildVersionGroupRank()
+
   // /pokemon lists every variety, alternate forms included — those live above
   // id 10000. We fetch the lot and group them under their species, so the grid
   // can stay one card per species while each card still knows its forms.
@@ -214,11 +353,19 @@ async function main() {
         isDefault: p.is_default === true,
         speciesId: idFromUrl(p.species.url),
         speciesName: p.species.name,
+        learnable: learnset(p, vgRank),
       }
     },
     (done, total) => process.stdout.write(`\r  ${done}/${total}`),
   )
   process.stdout.write('\n')
+
+  console.log('→ move data')
+  const moveNames = new Set()
+  for (const entry of raw) {
+    for (const line of entry.learnable) moveNames.add(line.name)
+  }
+  const moves = await buildMoves(moveNames)
 
   const bySpecies = new Map()
   for (const entry of raw) {
@@ -235,8 +382,8 @@ async function main() {
       .filter((v) => v !== base)
       .map((v) => {
         const { label, category } = describeForm(v.name, base.speciesName)
-        const { speciesId: _s, speciesName: _n, isDefault: _d, ...rest } = v
-        return { ...rest, label, category }
+        const { speciesId: _s, speciesName: _n, isDefault: _d, learnable, ...rest } = v
+        return { ...rest, label, category, moves: chooseMoveset(rest, learnable, moves) }
       })
       .sort(
         (a, b) =>
@@ -244,12 +391,13 @@ async function main() {
           a.label.localeCompare(b.label),
       )
 
-    const { speciesId: _s, speciesName: _n, isDefault: _d, ...core } = base
+    const { speciesId: _s, speciesName: _n, isDefault: _d, learnable, ...core } = base
     pokemon.push({
       ...core,
       id: speciesId,
       generation: genMap.get(base.speciesName) ?? 1,
       forms,
+      moves: chooseMoveset(core, learnable, moves),
     })
   }
 
@@ -268,17 +416,35 @@ async function main() {
   const abilities = await buildAbilityText(abilityNames)
 
   await writeFile(join(OUT_DIR, 'abilities.json'), JSON.stringify(abilities))
+  await writeFile(join(OUT_DIR, 'moves.json'), JSON.stringify(moves))
 
   await writeFile(
     join(OUT_DIR, 'pokedex.json'),
-    JSON.stringify({ generatedAt: new Date().toISOString(), generations, pokemon }, null, 0),
+    JSON.stringify(
+      {
+        generatedAt: new Date().toISOString(),
+        generations,
+        // Release order, so the detail page can pick out the newest learnset a
+        // Pokémon appears in without re-deriving the ordering at runtime.
+        versionGroups: [...vgRank.keys()],
+        pokemon,
+      },
+      null,
+      0,
+    ),
   )
   await writeFile(join(OUT_DIR, 'type-chart.json'), JSON.stringify({ types, chart }, null, 2))
 
+  const movelessCount = pokemon.filter((entry) => entry.moves.length === 0).length
+
   console.log(
-    `✓ wrote ${pokemon.length} Pokémon (+${formCount} forms), ${types.length} types and ` +
-      `${Object.keys(abilities).length} ability descriptions to public/data/`,
+    `✓ wrote ${pokemon.length} Pokémon (+${formCount} forms), ${types.length} types, ` +
+      `${Object.keys(abilities).length} ability descriptions and ` +
+      `${Object.keys(moves).length} moves to public/data/`,
   )
+  if (movelessCount > 0) {
+    console.log(`  note: ${movelessCount} entries learn no damaging move and will use Struggle`)
+  }
 }
 
 main().catch((err) => {

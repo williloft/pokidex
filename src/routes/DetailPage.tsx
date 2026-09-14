@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useDex } from '../App'
 import { EvolutionChain } from '../components/EvolutionChain'
 import { FormSwatches } from '../components/FormSwatches'
+import { LearnsetTable } from '../components/LearnsetTable'
 import { Sprite } from '../components/Sprite'
 import { StatBars } from '../components/StatBars'
 import { TypeBadge } from '../components/TypeBadge'
@@ -32,7 +33,7 @@ export function DetailPage({ shiny, slotState, teamFull, onToggleTeam }: Props) 
   const { name = '' } = useParams()
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
-  const { byName, byId, typeData, abilities: abilityText } = useDex()
+  const { byName, byId, typeData, abilities: abilityText, moves: moveIndex } = useDex()
   const pokemon = byName.get(name.toLowerCase())
 
   const [detail, setDetail] = useState<PokemonDetail | null>(null)
@@ -374,6 +375,26 @@ export function DetailPage({ shiny, slotState, teamFull, onToggleTeam }: Props) 
             <p className="panel__note">Evolution data unavailable.</p>
           ) : (
             <p className="panel__note">Loading…</p>
+          )}
+        </section>
+
+        <section className="panel">
+          <h2>Moves</h2>
+          {detail ? (
+            <>
+              <p className="panel__note">
+                From {displayName(pokemon.name)}&rsquo;s newest appearance. Every generation
+                re-levels and reshuffles what a Pokémon learns, so merging them all would produce
+                a learnset no game has ever had.
+              </p>
+              <LearnsetTable
+                learnset={detail.learnset}
+                moveIndex={moveIndex}
+                types={view.types}
+              />
+            </>
+          ) : (
+            <p className="panel__note">{detailError ? 'Move data unavailable.' : 'Loading…'}</p>
           )}
         </section>
 

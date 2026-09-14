@@ -31,7 +31,48 @@ export interface PokemonForm {
   height: number
   weight: number
   abilities: Ability[]
+  /** Names of the four moves it brings to a battle by default. */
+  moves: string[]
 }
+
+/** How a Pokémon comes by a move. */
+export type LearnMethod = 'level-up' | 'machine' | 'egg' | 'tutor' | 'other'
+
+/** One line of a learnset: what it learns, and how. */
+export interface LearnedMove {
+  name: string
+  method: LearnMethod
+  /** Only meaningful for level-up. */
+  level: number
+}
+
+/** A move, reduced to what the dex and a battle actually need. */
+export interface Move {
+  name: string
+  type: string
+  damageClass: 'physical' | 'special' | 'status'
+  /** 0 for status moves. */
+  power: number
+  /** null means it never misses, as in the games. */
+  accuracy: number | null
+  pp: number
+  priority: number
+  effect: string | null
+}
+
+/** Every move in the games, keyed by API name. */
+export type MoveIndex = Record<string, Move>
+
+/**
+ * Whether a move can be taken into a battle here.
+ *
+ * Status moves are listed on the dex page but never fought with: without
+ * abilities, items, weather or stat stages there is nothing for them to act
+ * on, and a Swords Dance that silently did nothing would be worse than a
+ * Swords Dance the battle openly does not offer.
+ */
+export const isBattleMove = (move: Move): boolean =>
+  move.damageClass !== 'status' && move.power > 0
 
 /** One entry of the static index that ships with the app. One per species. */
 export interface Pokemon {
@@ -46,6 +87,8 @@ export interface Pokemon {
   abilities: Ability[]
   generation: number
   forms: PokemonForm[]
+  /** Names of the four moves it brings to a battle by default. */
+  moves: string[]
 }
 
 export interface Generation {
@@ -58,6 +101,8 @@ export interface Pokedex {
   generatedAt: string
   generations: Generation[]
   pokemon: Pokemon[]
+  /** Version group names in release order, newest last. */
+  versionGroups?: string[]
 }
 
 /** chart[attacker][defender] = multiplier. A missing entry means 1x. */
@@ -84,6 +129,8 @@ export interface PokemonDetail {
   eggGroups: string[]
   captureRate: number
   growthRate: string | null
+  /** Everything this Pokémon learns in the newest game it appears in. */
+  learnset: LearnedMove[]
 }
 
 export interface EvolutionNode {
@@ -113,6 +160,8 @@ export interface FormView {
   height: number
   weight: number
   abilities: Ability[]
+  /** The four moves this variant brings to a battle by default. */
+  moves: string[]
 }
 
 const REGIONAL_ADJECTIVES: Record<string, string> = {
@@ -171,6 +220,7 @@ const baseView = (pokemon: Pokemon): FormView => ({
   height: pokemon.height,
   weight: pokemon.weight,
   abilities: pokemon.abilities,
+  moves: pokemon.moves,
 })
 
 /** Every selectable variant of a species, base form first. */
@@ -188,6 +238,7 @@ export function formViews(pokemon: Pokemon): FormView[] {
       height: form.height,
       weight: form.weight,
       abilities: form.abilities,
+      moves: form.moves,
     })),
   ]
 }
@@ -266,6 +317,8 @@ export function groupForms(pokemon: Pokemon): FormGroups {
 export interface TeamMember {
   pokemon: Pokemon
   view: FormView
+  /** The four moves it will fight with — the form's defaults unless changed. */
+  moves: string[]
 }
 
 export const STAT_LABELS: Record<StatName, string> = {
