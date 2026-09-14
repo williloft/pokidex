@@ -10,7 +10,13 @@ import { fetchDetail } from '../lib/api'
 import { dexHref } from '../lib/dexLocation'
 import { dexNumber, displayName } from '../lib/pokedex'
 import { crySrc } from '../lib/sprites'
-import { formViews, resolveForm, type PokemonDetail } from '../lib/types'
+import {
+  cosmeticViews,
+  groupForms,
+  resolveForm,
+  selectableViews,
+  type PokemonDetail,
+} from '../lib/types'
 import { defensiveProfile } from '../lib/typeChart'
 import { useDocumentTitle } from '../lib/useScrollRestoration'
 import type { SlotState } from '../lib/useTeam'
@@ -95,7 +101,8 @@ export function DetailPage({ shiny, slotState, teamFull, onToggleTeam }: Props) 
     )
   }
 
-  const views = formViews(pokemon)
+  const views = selectableViews(pokemon)
+  const costumes = cosmeticViews(pokemon)
   const primary = view.types[0] ?? 'normal'
   const profile = defensiveProfile(typeData.chart, typeData.types, view.types)
   const previous = byId.get(pokemon.id - 1)
@@ -170,6 +177,23 @@ export function DetailPage({ shiny, slotState, teamFull, onToggleTeam }: Props) 
                 name={displayName(pokemon.name)}
               />
             </div>
+          ) : null}
+
+          {/* Costumes change nothing but the artwork, so they stay folded away
+              rather than burying the forms that alter typing or stats. */}
+          {costumes.length > 0 ? (
+            <details className="costumes" open={costumes.some((item) => item.name === view.name)}>
+              <summary>
+                {costumes.length} appearance-only {costumes.length === 1 ? 'form' : 'forms'}
+              </summary>
+              <FormSwatches
+                views={[...costumes]}
+                selected={view.name}
+                onSelect={selectForm}
+                size="md"
+                name={displayName(pokemon.name)}
+              />
+            </details>
           ) : null}
 
           <div className="detail__types">
@@ -295,7 +319,13 @@ export function DetailPage({ shiny, slotState, teamFull, onToggleTeam }: Props) 
               node={detail.evolution}
               shiny={shiny}
               currentId={pokemon.id}
-              formsFor={(id) => byId.get(id)?.forms ?? []}
+              currentForm={view.name}
+              variantsFor={(id) => {
+                const species = byId.get(id)
+                if (!species) return { megas: [], special: [], cosmetic: [] }
+                return groupForms(species)
+              }}
+              nameFor={(id) => byId.get(id)?.name ?? ''}
             />
           ) : detailError ? (
             <p className="panel__note">Evolution data unavailable.</p>

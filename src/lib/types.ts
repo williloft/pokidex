@@ -185,10 +185,69 @@ export function formViews(pokemon: Pokemon): FormView[] {
   ]
 }
 
+/**
+ * The variants worth putting in front of someone by default: the base form,
+ * its Megas, and anything else that changes typing or stats. Costumes are kept
+ * back so a long row of them cannot bury the two forms that matter.
+ */
+export function selectableViews(pokemon: Pokemon): FormView[] {
+  const { megas, special } = groupForms(pokemon)
+  const keep = new Set([...megas, ...special].map((form) => form.name))
+  return formViews(pokemon).filter(
+    (view) => view.category === 'default' || keep.has(view.name),
+  )
+}
+
+/** Appearance-only variants, kept behind a disclosure. */
+export function cosmeticViews(pokemon: Pokemon): FormView[] {
+  const cosmetic = new Set(groupForms(pokemon).cosmetic.map((form) => form.name))
+  return formViews(pokemon).filter((view) => cosmetic.has(view.name))
+}
+
 /** Look up a form by its API name, falling back to the base form. */
 export function resolveForm(pokemon: Pokemon, formName?: string | null): FormView {
   if (!formName) return baseView(pokemon)
   return formViews(pokemon).find((view) => view.name === formName) ?? baseView(pokemon)
+}
+
+const sameTypes = (a: readonly string[], b: readonly string[]): boolean =>
+  a.length === b.length && a.every((type, index) => type === b[index])
+
+const sameStats = (a: Stats, b: Stats): boolean => STAT_ORDER.every((key) => a[key] === b[key])
+
+/**
+ * A form that changes neither typing nor stats is a costume.
+ *
+ * This is decided from the data rather than a hand-kept list, which matters:
+ * Pikachu alone has a long row of caps and outfits, and they would otherwise
+ * crowd out the forms that actually change how the Pokémon plays. Gigantamax
+ * falls in here too — it swaps the artwork and nothing we store.
+ */
+export function isCosmeticForm(pokemon: Pokemon, form: PokemonForm): boolean {
+  return sameTypes(pokemon.types, form.types) && sameStats(pokemon.stats, form.stats)
+}
+
+export interface FormGroups {
+  /** Mega Evolutions — shown in the evolution flow, not the costume drawer. */
+  megas: PokemonForm[]
+  /** Other forms that change typing or stats: regional variants and the like. */
+  special: PokemonForm[]
+  /** Appearance only. */
+  cosmetic: PokemonForm[]
+}
+
+export function groupForms(pokemon: Pokemon): FormGroups {
+  const megas: PokemonForm[] = []
+  const special: PokemonForm[] = []
+  const cosmetic: PokemonForm[] = []
+
+  for (const form of pokemon.forms) {
+    if (form.category === 'mega') megas.push(form)
+    else if (isCosmeticForm(pokemon, form)) cosmetic.push(form)
+    else special.push(form)
+  }
+
+  return { megas, special, cosmetic }
 }
 
 /** A team slot resolved against the dex: the species, and the form it runs. */

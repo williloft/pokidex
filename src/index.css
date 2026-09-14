@@ -12,6 +12,7 @@
   --text: #e8ecf2;
   --text-dim: #99a4b4;
   --accent: #5aa9ff;
+  --font-display: 'Space Grotesk', ui-sans-serif, system-ui, sans-serif;
   --radius: 14px;
   --radius-sm: 8px;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 8px 24px rgb(0 0 0 / 0.25);
@@ -77,8 +78,27 @@ img {
 h1,
 h2,
 h3 {
-  line-height: 1.2;
   margin: 0;
+  font-family: var(--font-display);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.015em;
+}
+
+/*
+ * Dex numbers, stat totals and multipliers are read as much as the prose is,
+ * so they get the display face too — its figures have far more character than
+ * the system default, which is most of why the old build read as plain.
+ */
+.card__number,
+.card__total,
+.detail__number,
+.stats__value,
+.filters__count,
+.evo__number,
+.heatmap td,
+.topbar__brand {
+  font-family: var(--font-display);
 }
 
 a {
@@ -133,17 +153,10 @@ a {
   text-decoration: none;
 }
 
-.topbar__dot {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: linear-gradient(
-    to bottom,
-    var(--type-fire) 0 46%,
-    var(--border) 46% 54%,
-    var(--bg-raised) 54% 100%
-  );
-  border: 1.5px solid var(--border);
+.brand-mark {
+  display: block;
+  flex: none;
+  border-radius: 5px;
 }
 
 .topbar__nav {
@@ -455,7 +468,7 @@ a {
 
 .card {
   position: relative;
-  height: 310px;
+  height: 296px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   /* Primary type owns the card: a glow from the top edge. */
@@ -537,8 +550,8 @@ a {
 }
 
 .card__art {
-  width: 132px;
-  height: 132px;
+  width: 152px;
+  height: 152px;
   object-fit: contain;
   filter: drop-shadow(0 6px 12px rgb(0 0 0 / 0.35));
   transition: transform 0.2s ease;
@@ -717,6 +730,24 @@ a {
 /* ---------------------------------------------------------------------------
    Detail page
    --------------------------------------------------------------------------- */
+
+/*
+ * The type already tints the hero; carrying a trace of it behind the whole
+ * page is what makes a Fire entry feel warm and a Water one cool, instead of
+ * every page being the same grey with a coloured badge on it.
+ */
+.detail::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(
+    70% 55% at 50% 0%,
+    color-mix(in srgb, var(--accent) 16%, transparent) 0%,
+    transparent 70%
+  );
+}
 
 .detail__nav {
   display: flex;
@@ -1316,5 +1347,172 @@ a {
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+
+/* ---------------------------------------------------------------------------
+   Costumes, Mega branches, team notices and suggestions
+   --------------------------------------------------------------------------- */
+
+.costumes {
+  margin-bottom: 14px;
+}
+
+.costumes summary {
+  display: inline-flex;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.costumes summary::-webkit-details-marker {
+  display: none;
+}
+
+.costumes summary:hover {
+  color: var(--text);
+}
+
+.costumes[open] summary {
+  margin-bottom: 10px;
+}
+
+/* Mega branch: its own energy, drawn rather than borrowed. */
+.evo__children--mega {
+  border-inline-start-color: color-mix(in srgb, var(--type-fire) 45%, var(--border));
+}
+
+.evo__trigger--mega {
+  color: color-mix(in srgb, var(--type-fire) 70%, var(--text));
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.68rem;
+}
+
+.evo__stage--mega {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--form-primary) 45%, var(--border));
+  background: linear-gradient(
+    110deg,
+    color-mix(in srgb, var(--form-primary) 14%, transparent),
+    color-mix(in srgb, var(--form-secondary) 10%, transparent) 60%,
+    transparent
+  );
+}
+
+.evo__aura {
+  position: absolute;
+  z-index: -1;
+  top: 50%;
+  left: 34px;
+  width: 86px;
+  height: 86px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--form-primary) 55%, transparent) 0%,
+    transparent 68%
+  );
+  filter: blur(6px);
+  animation: mega-pulse 2.6s ease-in-out infinite;
+}
+
+@keyframes mega-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: translate(-50%, -50%) scale(0.94);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translate(-50%, -50%) scale(1.06);
+  }
+}
+
+.team-notice {
+  margin: 0 0 16px;
+  padding: 12px 16px;
+  border: 1px solid color-mix(in srgb, var(--type-electric) 40%, var(--border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--type-electric) 8%, transparent);
+  color: var(--text-dim);
+  font-size: 0.88rem;
+}
+
+.team-notice strong {
+  color: var(--text);
+}
+
+.suggestions {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 12px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.suggestion {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(
+      120% 70% at 50% 0%,
+      color-mix(in srgb, var(--suggestion-accent) 18%, transparent),
+      transparent 70%
+    ),
+    var(--bg-sunken);
+}
+
+.suggestion__link {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  text-decoration: none;
+}
+
+.suggestion__link .sprite {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+}
+
+.suggestion__name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.suggestion__types {
+  display: flex;
+  gap: 5px;
+}
+
+.suggestion__reason {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .evo__aura {
+    animation: none;
   }
 }

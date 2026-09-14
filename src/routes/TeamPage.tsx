@@ -1,14 +1,17 @@
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useDex } from '../App'
 import { FormSwatches } from '../components/FormSwatches'
 import { Sprite } from '../components/Sprite'
 import { StatBars } from '../components/StatBars'
+import { Suggestions } from '../components/Suggestions'
 import { TypeBadge } from '../components/TypeBadge'
 import { WeaknessHeatmap } from '../components/WeaknessHeatmap'
 import { dexHref } from '../lib/dexLocation'
 import { displayName } from '../lib/pokedex'
+import { suggestMembers, teamNotices } from '../lib/suggest'
 import {
-  formViews,
+  selectableViews,
   STAT_ORDER,
   statTotal,
   type StatName,
@@ -20,8 +23,10 @@ import { useDocumentTitle } from '../lib/useScrollRestoration'
 interface Props {
   team: TeamMember[]
   shiny: boolean
+  teamFull: boolean
   onRemove: (id: number) => void
   onSetForm: (id: number, form: string | null) => void
+  onAdd: (id: number, form: string | null) => void
 }
 
 /**
@@ -39,9 +44,20 @@ function averageStats(team: TeamMember[]): Stats {
   return totals
 }
 
-export function TeamPage({ team, shiny, onRemove, onSetForm }: Props) {
-  const { typeData } = useDex()
+const NOTICE_TEXT: Record<'mega' | 'gmax', string> = {
+  mega: 'Only one Pokémon can Mega Evolve per battle, so only one of these will ever transform.',
+  gmax: 'Only one Pokémon can Dynamax per battle, so only one of these will ever transform.',
+}
+
+export function TeamPage({ team, shiny, teamFull, onRemove, onSetForm, onAdd }: Props) {
+  const { pokedex, typeData } = useDex()
   useDocumentTitle(team.length > 0 ? `Team (${team.length}) · Pokédex` : 'Team · Pokédex')
+
+  const suggestions = useMemo(
+    () => suggestMembers(pokedex.pokemon, team, typeData.chart, typeData.types),
+    [pokedex.pokemon, team, typeData],
+  )
+  const notices = useMemo(() => teamNotices(team), [team])
 
   if (team.length === 0) {
     return (
@@ -75,9 +91,17 @@ export function TeamPage({ team, shiny, onRemove, onSetForm }: Props) {
         </p>
       </header>
 
+      {notices.map((item) => (
+        <p className="team-notice" key={item.kind} role="status">
+          <strong>{item.names.join(' and ')}</strong>
+          {' — '}
+          {NOTICE_TEXT[item.kind]}
+        </p>
+      ))}
+
       <ul className="team-page__roster">
         {team.map(({ pokemon, view }) => {
-          const views = formViews(pokemon)
+          const views = selectableViews(pokemon)
           return (
             <li key={pokemon.id}>
               <Link
@@ -119,6 +143,20 @@ export function TeamPage({ team, shiny, onRemove, onSetForm }: Props) {
           )
         })}
       </ul>
+
+      <section className="panel">
+        <h2>What this team is missing</h2>
+        <p className="panel__note">
+          Scored on how many uncovered types each one answers, minus anything that piles onto a
+          weakness you already share.
+        </p>
+        <Suggestions
+          suggestions={suggestions}
+          shiny={shiny}
+          teamFull={teamFull}
+          onAdd={onAdd}
+        />
+      </section>
 
       <section className="panel">
         <h2>Type coverage</h2>

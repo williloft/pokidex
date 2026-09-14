@@ -2,7 +2,7 @@ import { memo, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { prefetchDetail } from '../lib/api'
 import { dexNumber, displayName, type DexEntry } from '../lib/pokedex'
-import { formViews, statTotal } from '../lib/types'
+import { selectableViews, statTotal } from '../lib/types'
 import type { SlotState } from '../lib/useTeam'
 import { FormSwatches } from './FormSwatches'
 import { Sprite } from './Sprite'
@@ -28,7 +28,7 @@ export const PokemonCard = memo(function PokemonCard({
   onToggleTeam,
 }: Props) {
   const { pokemon } = entry
-  const views = formViews(pokemon)
+  const views = selectableViews(pokemon)
   const [selected, setSelected] = useState(entry.formName ?? pokemon.name)
   const [navigating, setNavigating] = useState(false)
   const prefetchTimer = useRef<number | undefined>(undefined)

@@ -1,5 +1,6 @@
 import { createContext, useContext, useMemo } from 'react'
 import { Link, NavLink, Route, Routes, useLocation } from 'react-router-dom'
+import { BrandMark } from './components/BrandMark'
 import { TeamBar } from './components/TeamBar'
 import { useDataset, type Dataset } from './lib/dataset'
 import { resolveForm, type TeamMember } from './lib/types'
@@ -43,7 +44,7 @@ export default function App() {
     <div className="app" data-teambar={showTeamBar}>
       <header className="topbar">
         <Link className="topbar__brand" to="/">
-          <span className="topbar__dot" aria-hidden="true" />
+          <BrandMark />
           Pokédex
         </Link>
 
@@ -107,8 +108,10 @@ export default function App() {
                   <TeamPage
                     team={teamMembers}
                     shiny={shiny}
+                    teamFull={isFull}
                     onRemove={remove}
                     onSetForm={setForm}
+                    onAdd={toggle}
                   />
                 }
               />

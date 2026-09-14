@@ -1,70 +1,96 @@
 import { Link } from 'react-router-dom'
 import { dexNumber, displayName } from '../lib/pokedex'
-import type { EvolutionNode, PokemonForm } from '../lib/types'
+import { formTitle, type EvolutionNode, type FormGroups, type PokemonForm } from '../lib/types'
 import { Sprite } from './Sprite'
 
 interface Props {
   node: EvolutionNode
   shiny: boolean
   currentId: number
-  /** Alternate forms of a species in the chain, looked up from the dex index. */
-  formsFor: (id: number) => PokemonForm[]
+  /** API name of the variant being viewed, so the right node is marked. */
+  currentForm: string
+  variantsFor: (id: number) => FormGroups
+  nameFor: (id: number) => string
 }
 
 /**
  * The family tree, rather than a line — branching families are exactly the
  * interesting case.
  *
- * Megas, Gigantamax and regional variants hang off their stage rather than
- * sitting in the chain as steps of their own, because that is what they are:
- * another shape for that Pokémon, not the next thing it becomes.
+ * Mega Evolutions sit in the flow as a branch off their stage: they change
+ * typing, stats and ability, so treating them as a footnote undersells them.
+ * Regional variants stay as chips beside the stage, and appearance-only forms
+ * are left out entirely — a costume is not a step in a family tree.
  */
-export function EvolutionChain({ node, shiny, currentId, formsFor }: Props) {
+export function EvolutionChain(props: Props) {
   return (
     <ul className="evo">
-      <EvolutionBranch node={node} shiny={shiny} currentId={currentId} formsFor={formsFor} />
+      <EvolutionBranch {...props} />
     </ul>
   )
 }
 
-function EvolutionBranch({ node, shiny, currentId, formsFor }: Props) {
-  const forms = formsFor(node.id)
+function EvolutionBranch({ node, shiny, currentId, currentForm, variantsFor, nameFor }: Props) {
+  const { megas, special } = variantsFor(node.id)
+  const speciesName = nameFor(node.id) || node.name
+  const isCurrent = node.id === currentId && currentForm === speciesName
 
   return (
     <li className="evo__node">
       {node.trigger ? <span className="evo__trigger">{node.trigger}</span> : null}
 
       <Link
-        className={`evo__stage ${node.id === currentId ? 'evo__stage--current' : ''}`}
+        className={`evo__stage ${isCurrent ? 'evo__stage--current' : ''}`}
         to={`/pokemon/${node.name}`}
         viewTransition
-        aria-current={node.id === currentId ? 'page' : undefined}
+        aria-current={isCurrent ? 'page' : undefined}
       >
         <Sprite id={node.id} alt="" shiny={shiny} size={56} />
         <span className="evo__name">{displayName(node.name)}</span>
         <span className="evo__number">{dexNumber(node.id)}</span>
       </Link>
 
-      {forms.length > 0 ? (
+      {special.length > 0 ? (
         <ul className="evo__forms" aria-label={`Forms of ${displayName(node.name)}`}>
-          {forms.map((form) => (
+          {special.map((form) => (
             <li key={form.name}>
               <Link
                 className="evo__form"
                 to={`/pokemon/${node.name}?form=${form.name}`}
                 viewTransition
-                style={
-                  {
-                    '--form-primary': `var(--type-${form.types[0] ?? 'normal'})`,
-                    '--form-secondary': `var(--type-${form.types[1] ?? form.types[0] ?? 'normal'})`,
-                  } as React.CSSProperties
-                }
+                style={formColours(form)}
               >
                 <Sprite id={form.id} alt="" shiny={shiny} size={40} />
                 <span className="evo__form-label">{form.label}</span>
               </Link>
             </li>
           ))}
+        </ul>
+      ) : null}
+
+      {megas.length > 0 ? (
+        <ul className="evo__children evo__children--mega">
+          {megas.map((mega) => {
+            const megaCurrent = node.id === currentId && currentForm === mega.name
+            return (
+              <li className="evo__node" key={mega.name}>
+                <span className="evo__trigger evo__trigger--mega">Mega Evolution</span>
+                <Link
+                  className={`evo__stage evo__stage--mega ${megaCurrent ? 'evo__stage--current' : ''}`}
+                  to={`/pokemon/${node.name}?form=${mega.name}`}
+                  viewTransition
+                  aria-current={megaCurrent ? 'page' : undefined}
+                  style={formColours(mega)}
+                >
+                  <span className="evo__aura" aria-hidden="true" />
+                  <Sprite id={mega.id} alt="" shiny={shiny} size={56} />
+                  <span className="evo__name">
+                    {formTitle(speciesName, mega.label, mega.category)}
+                  </span>
+                </Link>
+              </li>
+            )
+          })}
         </ul>
       ) : null}
 
@@ -76,7 +102,9 @@ function EvolutionBranch({ node, shiny, currentId, formsFor }: Props) {
               node={child}
               shiny={shiny}
               currentId={currentId}
-              formsFor={formsFor}
+              currentForm={currentForm}
+              variantsFor={variantsFor}
+              nameFor={nameFor}
             />
           ))}
         </ul>
@@ -84,3 +112,9 @@ function EvolutionBranch({ node, shiny, currentId, formsFor }: Props) {
     </li>
   )
 }
+
+const formColours = (form: PokemonForm): React.CSSProperties =>
+  ({
+    '--form-primary': `var(--type-${form.types[0] ?? 'normal'})`,
+    '--form-secondary': `var(--type-${form.types[1] ?? form.types[0] ?? 'normal'})`,
+  }) as React.CSSProperties
