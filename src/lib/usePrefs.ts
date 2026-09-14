@@ -1,5 +1,5 @@
 import { createPreference } from './preference'
-import { SPRITE_STYLES, type SpriteStyle } from './sprites'
+import { DEFAULT_SPRITE_STYLE, SPRITE_STYLES, type SpriteStyle } from './sprites'
 
 const useShinyValue = createPreference<boolean>(
   'pokedex:shiny',
@@ -21,7 +21,7 @@ const VALID_STYLES = new Set(SPRITE_STYLES.map((style) => style.value))
 
 export const useSpriteStyle = createPreference<SpriteStyle>(
   'pokedex:sprite-style',
-  'home',
+  DEFAULT_SPRITE_STYLE,
   (raw) => (VALID_STYLES.has(raw as SpriteStyle) ? (raw as SpriteStyle) : null),
   (value) => value,
 )

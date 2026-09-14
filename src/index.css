@@ -644,6 +644,15 @@ a {
   opacity: 1;
 }
 
+/*
+ * Animated sprites come from small, old source art of mixed vintages. Letting
+ * the browser smooth them on the way up just looks soft next to the newer,
+ * larger ones; crisp pixels read as an intentional style.
+ */
+.sprite--pixelated {
+  image-rendering: pixelated;
+}
+
 .swatches {
   display: flex;
   flex-wrap: wrap;

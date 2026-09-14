@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { artwork, artworkFallbacks, type SpriteStyle } from '../lib/sprites'
+import {
+  artwork,
+  artworkFallbacks,
+  DEFAULT_SPRITE_STYLE,
+  isPixelated,
+  type SpriteStyle,
+} from '../lib/sprites'
 
 interface Props {
   id: number
@@ -28,7 +34,7 @@ export function Sprite({
   id,
   alt,
   shiny,
-  style = 'home',
+  style = DEFAULT_SPRITE_STYLE,
   size,
   className,
   transitionName,
@@ -84,7 +90,17 @@ export function Sprite({
 
   return (
     <img
-      className={`sprite ${ready ? 'sprite--ready' : ''} ${className ?? ''}`}
+      className={[
+        'sprite',
+        ready ? 'sprite--ready' : '',
+        // Animated sprites are small, old source art. Scaling them up with
+        // smoothing just makes them look blurry; keeping the pixels crisp
+        // reads as deliberate retro instead of low resolution.
+        isPixelated(style) ? 'sprite--pixelated' : '',
+        className ?? '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
       src={shown}
       alt={alt}
       width={size}
