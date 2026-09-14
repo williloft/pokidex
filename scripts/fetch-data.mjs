@@ -26,7 +26,7 @@ const CONCURRENCY = 16
 const FRESH = process.argv.includes('--fresh')
 
 /** Types that exist in the API but not in any real battle. */
-const EXCLUDED_TYPES = new Set(['unknown', 'shadow'])
+const EXCLUDED_TYPES = new Set(['unknown', 'shadow', 'stellar'])
 
 /** @type {(path: string) => string} */
 const cachePath = (path) => join(CACHE_DIR, path.replace(/[^a-z0-9]+/gi, '_') + '.json')
