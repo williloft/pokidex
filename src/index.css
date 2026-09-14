@@ -1516,3 +1516,104 @@ a {
     animation: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Dex entries and abilities
+   --------------------------------------------------------------------------- */
+
+/*
+ * Every game writes its own entry for the same Pokémon, so the page shows the
+ * newest in full and folds the rest away. The version label is what makes the
+ * pile readable — without it they look like near-duplicates.
+ */
+.dex-entries {
+  margin-bottom: 16px;
+}
+
+.dex-entries .detail__flavor {
+  margin-bottom: 6px;
+}
+
+.dex-entries__version {
+  display: inline-block;
+  margin-inline-start: 8px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--bg-sunken);
+  color: var(--text-dim);
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  vertical-align: middle;
+}
+
+.dex-entries__more summary {
+  display: inline-flex;
+  padding: 3px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-dim);
+  font-size: 0.76rem;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+
+.dex-entries__more summary::-webkit-details-marker {
+  display: none;
+}
+
+.dex-entries__more summary:hover {
+  color: var(--text);
+}
+
+.dex-entries__more ul {
+  display: grid;
+  gap: 12px;
+  max-width: 56ch;
+  margin: 12px 0 0;
+  padding: 0 0 0 14px;
+  border-inline-start: 1px solid var(--border);
+  list-style: none;
+}
+
+.dex-entries__more p {
+  margin: 0;
+  color: var(--text-dim);
+}
+
+.abilities {
+  display: grid;
+  gap: 14px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.abilities__name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+
+.abilities__hidden {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+  font-size: 0.64rem;
+  font-style: normal;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.abilities__text {
+  margin: 4px 0 0;
+  color: var(--text-dim);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}

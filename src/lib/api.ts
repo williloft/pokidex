@@ -1,4 +1,4 @@
-import type { EvolutionNode, PokemonDetail } from './types'
+import type { DexEntryText, EvolutionNode, PokemonDetail } from './types'
 
 /**
  * Everything the grid needs ships as static JSON. Only the detail page reaches
@@ -11,7 +11,7 @@ import type { EvolutionNode, PokemonDetail } from './types'
 
 const BASE = 'https://pokeapi.co/api/v2'
 const CACHE_PREFIX = 'pokedex:detail:'
-const CACHE_VERSION = 'v2'
+const CACHE_VERSION = 'v3'
 
 const memory = new Map<number, PokemonDetail>()
 
@@ -82,11 +82,34 @@ function toEvolutionTree(link: RawChainLink): EvolutionNode {
   }
 }
 
-/** English flavour text, newest entry first, with the line breaks cleaned up. */
-function pickFlavorText(entries: Array<{ flavor_text: string; language: { name: string } }>) {
-  const english = entries.filter((entry) => entry.language.name === 'en')
-  const chosen = english[english.length - 1] ?? english[0]
-  return chosen ? chosen.flavor_text.replace(/[\n\f­]/g, ' ').replace(/\s+/g, ' ').trim() : null
+/**
+ * Every English dex entry, newest first.
+ *
+ * Each game writes its own entry for the same Pokémon, so there are usually
+ * twenty or more — and they differ, which is half the fun of a dex. Taking only
+ * the newest left the page with a single sentence. Identical texts are folded
+ * together, since a run of games often reuses the same wording.
+ */
+function collectEntries(
+  raw: Array<{ flavor_text: string; language: { name: string }; version?: { name: string } }>,
+): DexEntryText[] {
+  const byText = new Map<string, DexEntryText>()
+
+  for (const entry of raw) {
+    if (entry.language.name !== 'en') continue
+
+    // The API wraps these to the width of a game text box, soft hyphens and all.
+    const text = entry.flavor_text
+      .replace(/[\n\f\u00ad]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    if (!text) continue
+
+    // Later entries are newer, so overwriting keeps the most recent version.
+    byText.set(text, { text, version: entry.version?.name ?? null })
+  }
+
+  return [...byText.values()].reverse()
 }
 
 export async function fetchDetail(id: number, signal?: AbortSignal): Promise<PokemonDetail> {
@@ -108,7 +131,7 @@ export async function fetchDetail(id: number, signal?: AbortSignal): Promise<Pok
 
   const detail: PokemonDetail = {
     id,
-    flavorText: pickFlavorText(species.flavor_text_entries ?? []),
+    entries: collectEntries(species.flavor_text_entries ?? []),
     genus:
       species.genera?.find((g: { language: { name: string } }) => g.language.name === 'en')?.genus ??
       null,

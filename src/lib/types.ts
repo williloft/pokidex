@@ -68,10 +68,17 @@ export interface TypeData {
   chart: TypeChart
 }
 
+/** One game's dex entry. */
+export interface DexEntryText {
+  text: string
+  /** The game version it comes from, e.g. "scarlet". */
+  version: string | null
+}
+
 /** Detail-page data, fetched lazily and cached in the browser. */
 export interface PokemonDetail {
   id: number
-  flavorText: string | null
+  entries: DexEntryText[]
   genus: string | null
   evolution: EvolutionNode | null
   eggGroups: string[]

@@ -156,6 +156,39 @@ function shape(p) {
 /** Megas and Gigantamax first — they are what people come looking for. */
 const FORM_ORDER = { mega: 0, gmax: 1, regional: 2, other: 3 }
 
+/**
+ * Ability descriptions, keyed by ability name.
+ *
+ * There are only a few hundred of them and they are shared across the whole
+ * dex, so fetching them once at build time is far cheaper than asking for them
+ * per Pokémon at runtime — and it puts real text on the detail page.
+ */
+async function buildAbilityText(names) {
+  const text = {}
+
+  await pool(
+    [...names].sort(),
+    async (name) => {
+      const ability = await get(`ability/${name}`)
+      const english = (entry) => entry.language.name === 'en'
+
+      const effect = ability.effect_entries?.find(english)
+      const flavour = (ability.flavor_text_entries ?? []).filter(english).pop()
+
+      const description =
+        effect?.short_effect ?? effect?.effect ?? flavour?.flavor_text ?? null
+
+      if (description) {
+        text[name] = description.replace(/[\n\f\u00ad]/g, ' ').replace(/\s+/g, ' ').trim()
+      }
+    },
+    (done, total) => process.stdout.write(`\r  ${done}/${total}`),
+  )
+  process.stdout.write('\n')
+
+  return text
+}
+
 async function main() {
   await mkdir(CACHE_DIR, { recursive: true })
   await mkdir(OUT_DIR, { recursive: true })
@@ -224,6 +257,18 @@ async function main() {
 
   const formCount = pokemon.reduce((sum, entry) => sum + entry.forms.length, 0)
 
+  console.log('→ ability text')
+  const abilityNames = new Set()
+  for (const entry of pokemon) {
+    for (const ability of entry.abilities) abilityNames.add(ability.name)
+    for (const form of entry.forms) {
+      for (const ability of form.abilities) abilityNames.add(ability.name)
+    }
+  }
+  const abilities = await buildAbilityText(abilityNames)
+
+  await writeFile(join(OUT_DIR, 'abilities.json'), JSON.stringify(abilities))
+
   await writeFile(
     join(OUT_DIR, 'pokedex.json'),
     JSON.stringify({ generatedAt: new Date().toISOString(), generations, pokemon }, null, 0),
@@ -231,7 +276,8 @@ async function main() {
   await writeFile(join(OUT_DIR, 'type-chart.json'), JSON.stringify({ types, chart }, null, 2))
 
   console.log(
-    `✓ wrote ${pokemon.length} Pokémon (+${formCount} forms) and ${types.length} types to public/data/`,
+    `✓ wrote ${pokemon.length} Pokémon (+${formCount} forms), ${types.length} types and ` +
+      `${Object.keys(abilities).length} ability descriptions to public/data/`,
   )
 }
 

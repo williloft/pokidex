@@ -4,6 +4,8 @@ import type { Pokedex, TypeData } from './types'
 export interface Dataset {
   pokedex: Pokedex
   typeData: TypeData
+  /** Ability name -> description. Empty if the data file predates them. */
+  abilities: Record<string, string>
   /** name -> entry, for O(1) lookups on the detail route. */
   byName: Map<string, Pokedex['pokemon'][number]>
   byId: Map<number, Pokedex['pokemon'][number]>
@@ -21,21 +23,46 @@ let cached: Promise<Dataset> | null = null
  * the browser can cache — not a thousand calls to a public API.
  */
 async function load(): Promise<Dataset> {
-  const [pokedexRes, typeRes] = await Promise.all([
+  const [pokedexRes, typeRes, abilityRes] = await Promise.all([
     fetch(`${import.meta.env.BASE_URL}data/pokedex.json`),
     fetch(`${import.meta.env.BASE_URL}data/type-chart.json`),
+    // Added later than the other two, so a stale data directory should degrade
+    // to "no descriptions" rather than taking the whole app down.
+    fetch(`${import.meta.env.BASE_URL}data/abilities.json`).catch(() => null),
   ])
 
-  if (!pokedexRes.ok || !typeRes.ok) {
-    throw new Error('Dex data is missing. Run `npm run fetch:data` to generate it.')
+  const missing = new Error('Dex data is missing. Run `npm run fetch:data` to generate it.')
+  if (!pokedexRes.ok || !typeRes.ok) throw missing
+
+  /*
+   * A missing file does not 404 here.
+   *
+   * The SPA rewrite that makes /pokemon/pikachu work also answers any unmatched
+   * path with index.html and a 200, so an absent data file arrives as a
+   * perfectly successful page of HTML. Checking `ok` is therefore not enough —
+   * the parse is what actually tells us whether the file is there.
+   */
+  const readJson = async <T,>(response: Response | null): Promise<T | null> => {
+    if (!response?.ok) return null
+    try {
+      return (await response.json()) as T
+    } catch {
+      return null
+    }
   }
 
-  const pokedex = (await pokedexRes.json()) as Pokedex
-  const typeData = (await typeRes.json()) as TypeData
+  const pokedex = await readJson<Pokedex>(pokedexRes)
+  const typeData = await readJson<TypeData>(typeRes)
+  if (!pokedex?.pokemon || !typeData?.types) throw missing
+
+  // Added after the other two, so an older data directory degrades to "no
+  // descriptions" rather than taking the whole app down.
+  const abilities = (await readJson<Record<string, string>>(abilityRes)) ?? {}
 
   return {
     pokedex,
     typeData,
+    abilities,
     byName: new Map(pokedex.pokemon.map((entry) => [entry.name, entry])),
     byId: new Map(pokedex.pokemon.map((entry) => [entry.id, entry])),
   }

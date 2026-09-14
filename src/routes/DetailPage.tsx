@@ -32,7 +32,7 @@ export function DetailPage({ shiny, slotState, teamFull, onToggleTeam }: Props) 
   const { name = '' } = useParams()
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
-  const { byName, byId, typeData } = useDex()
+  const { byName, byId, typeData, abilities: abilityText } = useDex()
   const pokemon = byName.get(name.toLowerCase())
 
   const [detail, setDetail] = useState<PokemonDetail | null>(null)
@@ -202,7 +202,36 @@ export function DetailPage({ shiny, slotState, teamFull, onToggleTeam }: Props) 
             ))}
           </div>
 
-          {detail?.flavorText ? <p className="detail__flavor">{detail.flavorText}</p> : null}
+          {detail && detail.entries.length > 0 ? (
+            <div className="dex-entries">
+              <p className="detail__flavor">
+                {detail.entries[0]!.text}
+                {detail.entries[0]!.version ? (
+                  <span className="dex-entries__version">
+                    {displayName(detail.entries[0]!.version)}
+                  </span>
+                ) : null}
+              </p>
+
+              {detail.entries.length > 1 ? (
+                <details className="dex-entries__more">
+                  <summary>
+                    {detail.entries.length - 1} more {detail.entries.length === 2 ? 'entry' : 'entries'}
+                  </summary>
+                  <ul>
+                    {detail.entries.slice(1).map((entry) => (
+                      <li key={`${entry.version ?? ''}-${entry.text}`}>
+                        <p>{entry.text}</p>
+                        {entry.version ? (
+                          <span className="dex-entries__version">{displayName(entry.version)}</span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              ) : null}
+            </div>
+          ) : null}
           {detailError ? <p className="detail__error">{detailError}</p> : null}
 
           <dl className="detail__facts">
@@ -218,14 +247,7 @@ export function DetailPage({ shiny, slotState, teamFull, onToggleTeam }: Props) 
               <dt>Generation</dt>
               <dd>{pokemon.generation}</dd>
             </div>
-            <div>
-              <dt>Abilities</dt>
-              <dd>
-                {view.abilities
-                  .map((ability) => displayName(ability.name) + (ability.hidden ? ' (hidden)' : ''))
-                  .join(', ') || '—'}
-              </dd>
-            </div>
+
           </dl>
 
           <div className="detail__actions">
@@ -310,6 +332,27 @@ export function DetailPage({ shiny, slotState, teamFull, onToggleTeam }: Props) 
               </div>
             </>
           ) : null}
+        </section>
+
+        <section className="panel">
+          <h2>Abilities</h2>
+          {view.abilities.length > 0 ? (
+            <ul className="abilities">
+              {view.abilities.map((ability) => (
+                <li key={ability.name}>
+                  <span className="abilities__name">
+                    {displayName(ability.name)}
+                    {ability.hidden ? <em className="abilities__hidden">hidden</em> : null}
+                  </span>
+                  {abilityText[ability.name] ? (
+                    <p className="abilities__text">{abilityText[ability.name]}</p>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="panel__note">None listed.</p>
+          )}
         </section>
 
         <section className="panel">
