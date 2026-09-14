@@ -216,14 +216,19 @@ const sameTypes = (a: readonly string[], b: readonly string[]): boolean =>
 const sameStats = (a: Stats, b: Stats): boolean => STAT_ORDER.every((key) => a[key] === b[key])
 
 /**
- * A form that changes neither typing nor stats is a costume.
+ * A costume: an unnamed variant that changes neither typing nor stats.
  *
- * This is decided from the data rather than a hand-kept list, which matters:
- * Pikachu alone has a long row of caps and outfits, and they would otherwise
- * crowd out the forms that actually change how the Pokémon plays. Gigantamax
- * falls in here too — it swaps the artwork and nothing we store.
+ * Deciding this from the data rather than a hand-kept list is what keeps
+ * Pikachu's long row of caps and outfits from crowding out the forms that
+ * change how a Pokémon plays.
+ *
+ * Gigantamax deliberately does not qualify, even though it matches on both
+ * counts. What it actually changes — the size, the G-Max move — is simply
+ * absent from what we store, and a named transformation filed next to a party
+ * hat is wrong in a way the reader would notice immediately.
  */
 export function isCosmeticForm(pokemon: Pokemon, form: PokemonForm): boolean {
+  if (form.category !== 'other') return false
   return sameTypes(pokemon.types, form.types) && sameStats(pokemon.stats, form.stats)
 }
 
