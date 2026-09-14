@@ -2,10 +2,10 @@ import { Link } from 'react-router-dom'
 import { displayName } from '../lib/pokedex'
 import { pixelSprite } from '../lib/sprites'
 import { TEAM_SIZE } from '../lib/useTeam'
-import type { Pokemon } from '../lib/types'
+import type { TeamMember } from '../lib/types'
 
 interface Props {
-  team: Pokemon[]
+  team: TeamMember[]
   shiny: boolean
   onRemove: (id: number) => void
   onClear: () => void
@@ -21,24 +21,36 @@ export function TeamBar({ team, shiny, onRemove, onClear }: Props) {
     <div className="teambar">
       <div className="teambar__inner">
         <ul className="teambar__slots">
-          {team.map((member) => (
-            <li key={member.id}>
+          {team.map(({ pokemon, view }) => (
+            <li key={pokemon.id}>
               <button
                 type="button"
-                onClick={() => onRemove(member.id)}
-                title={`Remove ${displayName(member.name)}`}
+                onClick={() => onRemove(pokemon.id)}
+                title={
+                  view.category === 'default'
+                    ? `Remove ${displayName(pokemon.name)}`
+                    : `Remove ${displayName(pokemon.name)} (${view.label})`
+                }
               >
                 <img
-                  src={pixelSprite(member.id, shiny)}
-                  alt={displayName(member.name)}
+                  // The slot shows the variant being run, not the base species.
+                  src={pixelSprite(view.id, shiny)}
+                  alt={displayName(view.name)}
                   width={48}
                   height={36}
                   loading="lazy"
                   onError={(event) => {
-                    // A missing shiny icon shouldn't leave an empty slot.
-                    event.currentTarget.src = pixelSprite(member.id, false)
+                    // Forms and shinies have patchier icon coverage; fall back
+                    // rather than leave an empty slot.
+                    const fallback = pixelSprite(pokemon.id, false)
+                    if (event.currentTarget.src !== fallback) event.currentTarget.src = fallback
                   }}
                 />
+                {view.category !== 'default' ? (
+                  <span className="teambar__form" aria-hidden="true">
+                    {view.label}
+                  </span>
+                ) : null}
               </button>
             </li>
           ))}

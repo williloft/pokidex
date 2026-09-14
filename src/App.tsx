@@ -3,7 +3,7 @@ import { Link, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { TeamBar } from './components/TeamBar'
 import { useDataset, type Dataset } from './lib/dataset'
 import { SPRITE_STYLES } from './lib/sprites'
-import type { Pokemon } from './lib/types'
+import { resolveForm, type TeamMember } from './lib/types'
 import { useShiny, useSpriteStyle } from './lib/usePrefs'
 import { useScrollRestoration } from './lib/useScrollRestoration'
 import { useTeam } from './lib/useTeam'
@@ -23,17 +23,20 @@ export default function App() {
   const state = useDataset()
   const [shiny, toggleShiny] = useShiny()
   const [spriteStyle, setSpriteStyle] = useSpriteStyle()
-  const { team, has, isFull, toggle, remove, clear } = useTeam()
+  const { team, stateOf, isFull, toggle, setForm, remove, clear } = useTeam()
   const location = useLocation()
 
   const dataset = state.status === 'ready' ? state.data : null
   useScrollRestoration(dataset !== null)
 
-  const teamMembers = useMemo<Pokemon[]>(() => {
+  const teamMembers = useMemo<TeamMember[]>(() => {
     if (!dataset) return []
     return team
-      .map((id) => dataset.byId.get(id))
-      .filter((entry): entry is Pokemon => entry !== undefined)
+      .map((entry) => {
+        const pokemon = dataset.byId.get(entry.id)
+        return pokemon ? { pokemon, view: resolveForm(pokemon, entry.form) } : null
+      })
+      .filter((member): member is TeamMember => member !== null)
   }, [dataset, team])
 
   const showTeamBar = location.pathname !== '/team' && teamMembers.length > 0
@@ -101,7 +104,7 @@ export default function App() {
                   <IndexPage
                     shiny={shiny}
                     spriteStyle={spriteStyle}
-                    inTeam={has}
+                    slotState={stateOf}
                     teamFull={isFull}
                     onToggleTeam={toggle}
                   />
@@ -113,7 +116,7 @@ export default function App() {
                   <DetailPage
                     shiny={shiny}
                     spriteStyle={spriteStyle}
-                    inTeam={has}
+                    slotState={stateOf}
                     teamFull={isFull}
                     onToggleTeam={toggle}
                   />
@@ -121,7 +124,14 @@ export default function App() {
               />
               <Route
                 path="/team"
-                element={<TeamPage team={teamMembers} shiny={shiny} onRemove={remove} />}
+                element={
+                  <TeamPage
+                    team={teamMembers}
+                    shiny={shiny}
+                    onRemove={remove}
+                    onSetForm={setForm}
+                  />
+                }
               />
               <Route
                 path="*"

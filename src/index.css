@@ -610,10 +610,16 @@ a {
   border-color: var(--text-dim);
 }
 
-.card__team--active {
+.card__team--in {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
+}
+
+/* The species holds a slot, but with a different form selected. */
+.card__team--other-form {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .card__team:disabled {
@@ -1012,6 +1018,7 @@ a {
 }
 
 .teambar__slots button {
+  position: relative;
   display: grid;
   place-items: center;
   width: 52px;
@@ -1021,6 +1028,28 @@ a {
   border-radius: var(--radius-sm);
   background: var(--bg-sunken);
   cursor: pointer;
+}
+
+.teambar__form {
+  position: absolute;
+  bottom: 1px;
+  left: 0;
+  right: 0;
+  color: var(--text-dim);
+  font-size: 0.55rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+.heatmap__form {
+  display: block;
+  color: var(--text-dim);
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .teambar__slots button:hover {

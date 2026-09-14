@@ -7,16 +7,17 @@ import { rememberSearch } from '../lib/dexLocation'
 import { filterAndSort } from '../lib/pokedex'
 import type { SpriteStyle } from '../lib/sprites'
 import { useFilters } from '../lib/useFilters'
+import type { SlotState } from '../lib/useTeam'
 
 interface Props {
   shiny: boolean
   spriteStyle: SpriteStyle
-  inTeam: (id: number) => boolean
+  slotState: (id: number, form: string | null) => SlotState
   teamFull: boolean
-  onToggleTeam: (id: number) => void
+  onToggleTeam: (id: number, form: string | null) => void
 }
 
-export function IndexPage({ shiny, spriteStyle, inTeam, teamFull, onToggleTeam }: Props) {
+export function IndexPage({ shiny, spriteStyle, slotState, teamFull, onToggleTeam }: Props) {
   const { pokedex, typeData } = useDex()
   const [filters, update, reset] = useFilters()
   const location = useLocation()
@@ -43,7 +44,7 @@ export function IndexPage({ shiny, spriteStyle, inTeam, teamFull, onToggleTeam }
         entries={results}
         shiny={shiny}
         spriteStyle={spriteStyle}
-        inTeam={inTeam}
+        slotState={slotState}
         teamFull={teamFull}
         onToggleTeam={onToggleTeam}
       />

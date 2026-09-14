@@ -141,6 +141,12 @@ export function resolveForm(pokemon: Pokemon, formName?: string | null): FormVie
   return formViews(pokemon).find((view) => view.name === formName) ?? baseView(pokemon)
 }
 
+/** A team slot resolved against the dex: the species, and the form it runs. */
+export interface TeamMember {
+  pokemon: Pokemon
+  view: FormView
+}
+
 export const STAT_LABELS: Record<StatName, string> = {
   hp: 'HP',
   attack: 'Attack',

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useDex } from '../App'
+import { FormSwatches } from '../components/FormSwatches'
 import { Sprite } from '../components/Sprite'
 import { StatBars } from '../components/StatBars'
 import { TypeBadge } from '../components/TypeBadge'
@@ -7,20 +8,31 @@ import { WeaknessHeatmap } from '../components/WeaknessHeatmap'
 import { dexHref } from '../lib/dexLocation'
 import { displayName } from '../lib/pokedex'
 import { useSpriteStyle } from '../lib/usePrefs'
-import { STAT_ORDER, statTotal, type Pokemon, type StatName, type Stats } from '../lib/types'
+import {
+  formViews,
+  STAT_ORDER,
+  statTotal,
+  type StatName,
+  type Stats,
+  type TeamMember,
+} from '../lib/types'
 import { useDocumentTitle } from '../lib/useScrollRestoration'
 
 interface Props {
-  team: Pokemon[]
+  team: TeamMember[]
   shiny: boolean
   onRemove: (id: number) => void
+  onSetForm: (id: number, form: string | null) => void
 }
 
-/** Average of each base stat across the team — a rough shape of what it does. */
-function averageStats(team: Pokemon[]): Stats {
+/**
+ * Average of each base stat across the team — using the form each member is
+ * actually running, since a Mega can move these numbers a long way.
+ */
+function averageStats(team: TeamMember[]): Stats {
   const totals = Object.fromEntries(STAT_ORDER.map((key) => [key, 0])) as Stats
-  for (const member of team) {
-    for (const key of STAT_ORDER) totals[key] += member.stats[key]
+  for (const { view } of team) {
+    for (const key of STAT_ORDER) totals[key] += view.stats[key]
   }
   for (const key of STAT_ORDER) {
     totals[key] = Math.round(totals[key] / Math.max(1, team.length))
@@ -28,7 +40,7 @@ function averageStats(team: Pokemon[]): Stats {
   return totals
 }
 
-export function TeamPage({ team, shiny, onRemove }: Props) {
+export function TeamPage({ team, shiny, onRemove, onSetForm }: Props) {
   const { typeData } = useDex()
   const [spriteStyle] = useSpriteStyle()
   useDocumentTitle(team.length > 0 ? `Team (${team.length}) · Pokédex` : 'Team · Pokédex')
@@ -46,13 +58,13 @@ export function TeamPage({ team, shiny, onRemove }: Props) {
   }
 
   const averages = averageStats(team)
-  const typeSpread = new Set(team.flatMap((member) => member.types))
+  const typeSpread = new Set(team.flatMap((member) => member.view.types))
   const bestStat = STAT_ORDER.reduce<StatName>(
     (best, key) => (averages[key] > averages[best] ? key : best),
     'hp',
   )
   const averageBst = Math.round(
-    team.reduce((sum, member) => sum + statTotal(member.stats), 0) / team.length,
+    team.reduce((sum, member) => sum + statTotal(member.view.stats), 0) / team.length,
   )
 
   return (
@@ -66,28 +78,59 @@ export function TeamPage({ team, shiny, onRemove }: Props) {
       </header>
 
       <ul className="team-page__roster">
-        {team.map((member) => (
-          <li key={member.id}>
-            <Link to={`/pokemon/${member.name}`} viewTransition>
-              <Sprite
-                id={member.id}
-                alt={displayName(member.name)}
-                shiny={shiny}
-                style={spriteStyle}
-                size={96}
+        {team.map(({ pokemon, view }) => {
+          const views = formViews(pokemon)
+          return (
+            <li key={pokemon.id}>
+              <Link
+                to={
+                  view.category === 'default'
+                    ? `/pokemon/${pokemon.name}`
+                    : `/pokemon/${pokemon.name}?form=${view.name}`
+                }
+                viewTransition
+              >
+                <Sprite
+                  id={view.id}
+                  alt={displayName(view.name)}
+                  shiny={shiny}
+                  style={spriteStyle}
+                  size={96}
+                />
+                <span className="team-page__name">
+                  {displayName(pokemon.name)}
+                  {view.category !== 'default' ? (
+                    <span className="card__form">{view.label}</span>
+                  ) : null}
+                </span>
+              </Link>
+
+              <div className="team-page__types">
+                {view.types.map((type) => (
+                  <TypeBadge key={type} type={type} />
+                ))}
+              </div>
+
+              {/* Swap the variant here and the whole analysis below follows. */}
+              <FormSwatches
+                views={views}
+                selected={view.name}
+                onSelect={(formName) =>
+                  onSetForm(pokemon.id, formName === pokemon.name ? null : formName)
+                }
+                name={displayName(pokemon.name)}
               />
-              <span className="team-page__name">{displayName(member.name)}</span>
-            </Link>
-            <div className="team-page__types">
-              {member.types.map((type) => (
-                <TypeBadge key={type} type={type} />
-              ))}
-            </div>
-            <button type="button" className="chip chip--ghost" onClick={() => onRemove(member.id)}>
-              Remove
-            </button>
-          </li>
-        ))}
+
+              <button
+                type="button"
+                className="chip chip--ghost"
+                onClick={() => onRemove(pokemon.id)}
+              >
+                Remove
+              </button>
+            </li>
+          )
+        })}
       </ul>
 
       <section className="panel">
@@ -106,7 +149,7 @@ export function TeamPage({ team, shiny, onRemove }: Props) {
           Strongest area: {bestStat.replace('-', ' ')}. Averages hide outliers, so check individual
           members before trusting the shape.
         </p>
-        <StatBars stats={averages} accent={team[0]?.types[0] ?? 'normal'} />
+        <StatBars stats={averages} accent={team[0]?.view.types[0] ?? 'normal'} />
       </section>
     </div>
   )

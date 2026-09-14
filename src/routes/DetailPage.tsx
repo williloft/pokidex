@@ -13,16 +13,17 @@ import { crySrc, type SpriteStyle } from '../lib/sprites'
 import { formViews, resolveForm, type PokemonDetail } from '../lib/types'
 import { defensiveProfile } from '../lib/typeChart'
 import { useDocumentTitle } from '../lib/useScrollRestoration'
+import type { SlotState } from '../lib/useTeam'
 
 interface Props {
   shiny: boolean
   spriteStyle: SpriteStyle
-  inTeam: (id: number) => boolean
+  slotState: (id: number, form: string | null) => SlotState
   teamFull: boolean
-  onToggleTeam: (id: number) => void
+  onToggleTeam: (id: number, form: string | null) => void
 }
 
-export function DetailPage({ shiny, spriteStyle, inTeam, teamFull, onToggleTeam }: Props) {
+export function DetailPage({ shiny, spriteStyle, slotState, teamFull, onToggleTeam }: Props) {
   const { name = '' } = useParams()
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
@@ -100,7 +101,8 @@ export function DetailPage({ shiny, spriteStyle, inTeam, teamFull, onToggleTeam 
   const profile = defensiveProfile(typeData.chart, typeData.types, view.types)
   const previous = byId.get(pokemon.id - 1)
   const next = byId.get(pokemon.id + 1)
-  const isInTeam = inTeam(pokemon.id)
+  const formName = view.category === 'default' ? null : view.name
+  const slot = slotState(pokemon.id, formName)
 
   const selectForm = (formName: string) => {
     const nextParams = new URLSearchParams(params)
@@ -207,11 +209,22 @@ export function DetailPage({ shiny, spriteStyle, inTeam, teamFull, onToggleTeam 
           <div className="detail__actions">
             <button
               type="button"
-              className={`button ${isInTeam ? 'button--active' : ''}`}
-              onClick={() => onToggleTeam(pokemon.id)}
-              disabled={teamFull && !isInTeam}
+              className={`button ${slot === 'in' ? 'button--active' : ''}`}
+              onClick={() => onToggleTeam(pokemon.id, formName)}
+              disabled={teamFull && slot === 'out'}
+              title={
+                slot === 'other-form'
+                  ? 'This species already has a slot — this swaps which form fills it'
+                  : undefined
+              }
             >
-              {isInTeam ? 'In your team' : teamFull ? 'Team is full' : 'Add to team'}
+              {slot === 'in'
+                ? 'In your team'
+                : slot === 'other-form'
+                  ? `Run ${view.label} instead`
+                  : teamFull
+                    ? 'Team is full'
+                    : 'Add to team'}
             </button>
             <button type="button" className="chip" onClick={playCry}>
               ♪ Play cry

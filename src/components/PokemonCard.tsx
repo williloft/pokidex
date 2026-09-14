@@ -4,6 +4,7 @@ import { prefetchDetail } from '../lib/api'
 import { dexNumber, displayName, type DexEntry } from '../lib/pokedex'
 import type { SpriteStyle } from '../lib/sprites'
 import { formViews, statTotal } from '../lib/types'
+import type { SlotState } from '../lib/useTeam'
 import { FormSwatches } from './FormSwatches'
 import { Sprite } from './Sprite'
 import { TypeBadge } from './TypeBadge'
@@ -12,9 +13,10 @@ interface Props {
   entry: DexEntry
   shiny: boolean
   spriteStyle: SpriteStyle
-  inTeam: boolean
+  /** Asked per form, because the card's selected variant is local state. */
+  slotState: (id: number, form: string | null) => SlotState
   teamFull: boolean
-  onToggleTeam: (id: number) => void
+  onToggleTeam: (id: number, form: string | null) => void
 }
 
 /** Sweeping the mouse over the grid shouldn't fire a request per card. */
@@ -24,7 +26,7 @@ export const PokemonCard = memo(function PokemonCard({
   entry,
   shiny,
   spriteStyle,
-  inTeam,
+  slotState,
   teamFull,
   onToggleTeam,
 }: Props) {
@@ -44,7 +46,9 @@ export const PokemonCard = memo(function PokemonCard({
   const view = views.find((item) => item.name === selected) ?? views[0]!
   const primary = view.types[0] ?? 'normal'
   const secondary = view.types[1] ?? null
-  const disabled = teamFull && !inTeam
+  const formName = view.category === 'default' ? null : view.name
+  const slot = slotState(pokemon.id, formName)
+  const disabled = teamFull && slot === 'out'
   const href =
     view.category === 'default'
       ? `/pokemon/${pokemon.name}`
@@ -113,20 +117,29 @@ export const PokemonCard = memo(function PokemonCard({
 
       <button
         type="button"
-        className={`card__team ${inTeam ? 'card__team--active' : ''}`}
-        onClick={() => onToggleTeam(pokemon.id)}
+        className={`card__team card__team--${slot}`}
+        onClick={() => onToggleTeam(pokemon.id, formName)}
         disabled={disabled}
-        aria-pressed={inTeam}
+        aria-pressed={slot === 'in'}
         title={
-          inTeam
+          slot === 'in'
             ? `Remove ${displayName(pokemon.name)} from your team`
-            : disabled
-              ? 'Your team is full'
-              : `Add ${displayName(pokemon.name)} to your team`
+            : slot === 'other-form'
+              ? // The species already has a slot — this swaps which variant fills it.
+                `Run ${view.label} instead on your team`
+              : disabled
+                ? 'Your team is full'
+                : `Add ${displayName(view.name)} to your team`
         }
       >
-        {inTeam ? '−' : '+'}
-        <span className="visually-hidden">{inTeam ? 'Remove from team' : 'Add to team'}</span>
+        {slot === 'in' ? '−' : slot === 'other-form' ? '⇄' : '+'}
+        <span className="visually-hidden">
+          {slot === 'in'
+            ? 'Remove from team'
+            : slot === 'other-form'
+              ? 'Switch team form'
+              : 'Add to team'}
+        </span>
       </button>
     </article>
   )
