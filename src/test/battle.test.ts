@@ -7,6 +7,7 @@ import {
   hpAtLevel,
   isDown,
   makeBattler,
+  moveEffectiveness,
   resolveMoves,
   statAtLevel,
   STRUGGLE,
@@ -215,6 +216,23 @@ describe('willHit', () => {
   })
 })
 
+describe('moveEffectiveness', () => {
+  it('reads the chart for an ordinary move', () => {
+    expect(moveEffectiveness(chart, moves.ember!, ['grass'])).toBe(2)
+    expect(moveEffectiveness(chart, moves.ember!, ['water'])).toBe(0.5)
+    expect(moveEffectiveness(chart, moves.tackle!, ['ghost'])).toBe(0)
+  })
+
+  it('stacks across both of a dual type', () => {
+    // Fire into grass is 2x and into water is 0.5x, so the pair lands neutral.
+    expect(moveEffectiveness(chart, moves.ember!, ['grass', 'water'])).toBe(1)
+  })
+
+  it('lets Struggle ignore the chart entirely', () => {
+    expect(moveEffectiveness(chart, STRUGGLE, ['ghost'])).toBe(1)
+  })
+})
+
 describe('firstMover', () => {
   const quick = battlerOf('quick', ['fire'], { speed: 150 })
   const slow = battlerOf('slow', ['grass'], { speed: 30 })
@@ -395,6 +413,31 @@ describe('the battle loop', () => {
     expect(mine?.beat?.move).toBe('ember')
     expect(mine?.beat?.damage).toBeGreaterThan(0)
     expect(mine?.beat?.multiplier).toBe(2)
+  })
+
+  it('gives an opponent switch a beat of its own', () => {
+    // Grass out against fire, with water on the bench: hard pulls it back.
+    const walled = {
+      ...trainer,
+      difficulty: 'hard' as const,
+      team: [
+        battlerOf('foe-grass', ['grass'], {}, ['vine']),
+        battlerOf('foe-water', ['water'], {}, ['splash']),
+      ],
+    }
+    const frames = resolveTurn(
+      startBattle([battlerOf('you-fire', ['fire'], {}, ['ember'])], walled),
+      { kind: 'move', index: 0 },
+      { chart, difficulty: 'hard', roll: () => 0.5 },
+    )
+
+    const switched = frames.find((frame) => frame.beat?.kind === 'switch')
+    expect(switched?.beat?.side).toBe('foe')
+    expect(switched?.foe[switched.foeActive]!.key).toBe('foe-water')
+    // And it comes before the attack, so the hit lands on what came in.
+    expect(frames.indexOf(switched!)).toBeLessThan(
+      frames.findIndex((frame) => frame.beat?.kind === 'attack'),
+    )
   })
 
   it('marks the beat that knocked something out', () => {

@@ -3,7 +3,14 @@ import { Link } from 'react-router-dom'
 import { useDex } from '../App'
 import { Sprite } from '../components/Sprite'
 import { TypeBadge } from '../components/TypeBadge'
-import { isDown, makeBattler, STRUGGLE, usableMoves, type Difficulty } from '../lib/battle'
+import {
+  isDown,
+  makeBattler,
+  moveEffectiveness,
+  STRUGGLE,
+  usableMoves,
+  type Difficulty,
+} from '../lib/battle'
 import {
   resolveTurn,
   sendIn,
@@ -53,8 +60,29 @@ const moveLabel = (name: string): string =>
 const beatDelay = (beat: Beat | null): number => {
   if (!beat) return 0
   if (beat.kind === 'attack') return beat.fainted ? 1000 : 760
+  // A switch is a decision, not bookkeeping — it needs long enough to read who
+  // came in and why the matchup just changed under you.
+  if (beat.kind === 'switch') return 700
   return 420
 }
+
+/**
+ * How the type chart reads for one move against what is currently out.
+ *
+ * The whole game of picking a move is this number, and working it out from two
+ * type badges and memory is exactly the part that is no fun.
+ */
+const EFFECT_LABEL: Array<{ min: number; tone: string; text: string }> = [
+  { min: 4, tone: 'super', text: '4× Super effective' },
+  { min: 2, tone: 'super', text: '2× Super effective' },
+  { min: 1, tone: 'even', text: '' },
+  { min: 0.5, tone: 'weak', text: '½× Not very effective' },
+  { min: 0.25, tone: 'weak', text: '¼× Not very effective' },
+  { min: 0, tone: 'none', text: 'No effect' },
+]
+
+const describeEffect = (multiplier: number) =>
+  EFFECT_LABEL.find((entry) => multiplier >= entry.min) ?? EFFECT_LABEL[2]!
 
 /** The damage number that floats off whoever just got hit. */
 function DamagePop({ beat, tick }: { beat: Beat; tick: number }) {
@@ -211,12 +239,17 @@ export function BattlePage({ team, shiny }: Props) {
   const attacking = beat?.kind === 'attack' ? beat.side : null
   const landed = beat?.kind === 'attack' && !beat.missed && beat.multiplier !== 0
 
+  // A switch swaps the sprite out from under you, so the one coming in is
+  // announced rather than simply appearing.
+  const entering = beat?.kind === 'switch' ? beat.side : null
+
   const sideClass = (side: 'player' | 'foe') =>
     [
       'arena__side',
       side === 'foe' ? 'arena__side--foe' : '',
       attacking === side ? 'arena__side--swinging' : '',
       attacking && attacking !== side && landed ? 'arena__side--struck' : '',
+      entering === side ? 'arena__side--entering' : '',
     ]
       .filter(Boolean)
       .join(' ')
@@ -250,7 +283,15 @@ export function BattlePage({ team, shiny }: Props) {
             </p>
           </div>
           <div className="arena__stage">
-            <Sprite id={foe.view.id} alt={foe.view.title} shiny={shiny} size={180} />
+            {/* Keyed by the variant: a switch remounts it, so the sprite coming
+                in plays its entrance rather than silently replacing the last. */}
+            <Sprite
+              key={foe.view.id}
+              id={foe.view.id}
+              alt={foe.view.title}
+              shiny={shiny}
+              size={180}
+            />
             {beat?.kind === 'attack' && beat.side === 'player' ? (
               <DamagePop beat={beat} tick={tick} />
             ) : null}
@@ -259,7 +300,13 @@ export function BattlePage({ team, shiny }: Props) {
 
         <div className={sideClass('player')}>
           <div className="arena__stage">
-            <Sprite id={you.view.id} alt={you.view.title} shiny={shiny} size={200} />
+            <Sprite
+              key={you.view.id}
+              id={you.view.id}
+              alt={you.view.title}
+              shiny={shiny}
+              size={200}
+            />
             {beat?.kind === 'attack' && beat.side === 'foe' ? (
               <DamagePop beat={beat} tick={tick} />
             ) : null}
@@ -283,6 +330,15 @@ export function BattlePage({ team, shiny }: Props) {
             </p>
           </div>
         </div>
+
+        {/*
+          * The newest log line, said where you are already looking. The log
+          * panel has it too, but it sits below the fold mid-battle — which is
+          * most of why an opponent switching read as the screen glitching.
+          */}
+        <p className="arena__caption" role="status" key={`caption-${tick}`}>
+          {battle.log[0] ?? ''}
+        </p>
       </section>
 
       <section className="panel">
@@ -304,30 +360,45 @@ export function BattlePage({ team, shiny }: Props) {
             {battle.phase === 'choosing' ? (
               usableMoves(you).length > 0 ? (
                 <ul className="movepad">
-                  {you.moves.map((slot, index) => (
-                    <li key={slot.move.name}>
-                      <button
-                        type="button"
-                        className="movepad__move"
-                        disabled={slot.pp <= 0 || busy}
-                        title={slot.move.effect ?? undefined}
-                        onClick={() => act({ kind: 'move', index })}
-                        style={
-                          { '--move-accent': `var(--type-${slot.move.type})` } as React.CSSProperties
-                        }
-                      >
-                        <span className="movepad__name">{moveLabel(slot.move.name)}</span>
-                        <span className="movepad__meta">
-                          <TypeBadge type={slot.move.type} />
-                          <span className="movepad__class">{slot.move.damageClass}</span>
-                        </span>
-                        <span className="movepad__numbers">
-                          {slot.move.power} pwr · {slot.move.accuracy ?? '—'} acc · {slot.pp}/
-                          {slot.maxPp} PP
-                        </span>
-                      </button>
-                    </li>
-                  ))}
+                  {you.moves.map((slot, index) => {
+                    const multiplier = moveEffectiveness(
+                      typeData.chart,
+                      slot.move,
+                      foe.view.types,
+                    )
+                    const effect = describeEffect(multiplier)
+                    return (
+                      <li key={slot.move.name}>
+                        <button
+                          type="button"
+                          className={`movepad__move movepad__move--${effect.tone}`}
+                          disabled={slot.pp <= 0 || busy}
+                          title={slot.move.effect ?? undefined}
+                          onClick={() => act({ kind: 'move', index })}
+                          style={
+                            {
+                              '--move-accent': `var(--type-${slot.move.type})`,
+                            } as React.CSSProperties
+                          }
+                        >
+                          <span className="movepad__name">
+                            {moveLabel(slot.move.name)}
+                            {effect.text ? (
+                              <span className={`effect effect--${effect.tone}`}>{effect.text}</span>
+                            ) : null}
+                          </span>
+                          <span className="movepad__meta">
+                            <TypeBadge type={slot.move.type} />
+                            <span className="movepad__class">{slot.move.damageClass}</span>
+                          </span>
+                          <span className="movepad__numbers">
+                            {slot.move.power} pwr · {slot.move.accuracy ?? '—'} acc · {slot.pp}/
+                            {slot.maxPp} PP
+                          </span>
+                        </button>
+                      </li>
+                    )
+                  })}
                 </ul>
               ) : (
                 // Nothing left to throw. Struggle is the only legal action, and

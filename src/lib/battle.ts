@@ -120,11 +120,18 @@ export interface DamageResult {
 }
 
 /**
+ * What this move is worth against these types.
+ *
  * Struggle ignores the type chart rather than counting as a Normal move, so
  * even a Ghost takes full damage from it.
  */
-const multiplierFor = (chart: TypeChart, move: Move, defender: readonly string[]): number =>
-  move.name === STRUGGLE.name ? 1 : effectiveness(chart, move.type, defender)
+export const moveEffectiveness = (
+  chart: TypeChart,
+  move: Move,
+  defender: readonly string[],
+): number => (move.name === STRUGGLE.name ? 1 : effectiveness(chart, move.type, defender))
+
+const multiplierFor = moveEffectiveness
 
 /**
  * The mainline damage formula, minus everything we cannot know.
