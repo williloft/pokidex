@@ -14,7 +14,7 @@ import {
   willHit,
   type Battler,
 } from '../lib/battle'
-import { sendIn, startBattle, takeTurn } from '../lib/battleState'
+import { resolveTurn, sendIn, startBattle, takeTurn } from '../lib/battleState'
 import { buildTrainer, TRAINERS } from '../lib/trainers'
 import { resolveForm, type Move, type MoveIndex, type Pokemon, type Stats, type TypeChart } from '../lib/types'
 
@@ -122,6 +122,33 @@ describe('resolveMoves', () => {
     const [slot] = resolveMoves(['tackle'], moves)
     expect(slot?.pp).toBe(2)
     expect(slot?.maxPp).toBe(2)
+  })
+})
+
+describe('a form with no moveset of its own', () => {
+  // Every Gigantamax entry comes back from the API with an empty move list.
+  const species = mon('charizard', ['fire'], {}, ['ember', 'tackle'])
+  const gmax = {
+    ...resolveForm(species, null),
+    id: 10196,
+    name: 'charizard-gmax',
+    moves: [],
+  }
+
+  it('borrows the species moveset rather than going out on Struggle', () => {
+    const battler = makeBattler(species, gmax, 'gmax', moves)
+    expect(battler.moves.map((slot) => slot.move.name)).toEqual(['ember', 'tackle'])
+  })
+
+  it('still prefers a moveset that was picked by hand', () => {
+    const battler = makeBattler(species, gmax, 'gmax', moves, ['vine'])
+    expect(battler.moves.map((slot) => slot.move.name)).toEqual(['vine'])
+  })
+
+  it('leaves the base form alone when the species itself has nothing', () => {
+    const blank = mon('missingno', ['normal'], {}, [])
+    const battler = makeBattler(blank, resolveForm(blank, null), 'blank', moves)
+    expect(battler.moves).toHaveLength(0)
   })
 })
 
@@ -336,6 +363,50 @@ describe('the battle loop', () => {
 
     expect(state.phase).toBe('over')
     expect(state.winner).toBe('foe')
+  })
+
+  it('hands the exchange back one beat at a time, ending on the settled state', () => {
+    const frames = resolveTurn(startBattle(party, trainer), { kind: 'move', index: 0 }, options)
+
+    // Two attacks plus the settle; nothing is bundled into a single frame.
+    expect(frames.length).toBeGreaterThanOrEqual(3)
+    expect(frames.filter((frame) => frame.beat?.kind === 'attack')).toHaveLength(2)
+    expect(frames[frames.length - 1]!.beat?.kind).toBe('settle')
+    expect(frames[frames.length - 1]).toEqual(
+      takeTurn(startBattle(party, trainer), { kind: 'move', index: 0 }, options),
+    )
+  })
+
+  it('orders the beats by speed, so the faster side is seen to go first', () => {
+    const quick = [battlerOf('you-a', ['fire'], { speed: 200 }, ['ember'])]
+    const slowFoe = {
+      ...trainer,
+      team: [battlerOf('foe-a', ['grass'], { speed: 10 }, ['vine'])],
+    }
+    const frames = resolveTurn(startBattle(quick, slowFoe), { kind: 'move', index: 0 }, options)
+    const attacks = frames.filter((frame) => frame.beat?.kind === 'attack')
+    expect(attacks[0]!.beat?.side).toBe('player')
+    expect(attacks[1]!.beat?.side).toBe('foe')
+  })
+
+  it('puts the damage on the beat, so the screen does not have to recompute it', () => {
+    const frames = resolveTurn(startBattle(party, trainer), { kind: 'move', index: 0 }, options)
+    const mine = frames.find((frame) => frame.beat?.side === 'player' && frame.beat.kind === 'attack')
+    expect(mine?.beat?.move).toBe('ember')
+    expect(mine?.beat?.damage).toBeGreaterThan(0)
+    expect(mine?.beat?.multiplier).toBe(2)
+  })
+
+  it('marks the beat that knocked something out', () => {
+    const frames = resolveTurn(
+      startBattle(party, {
+        ...trainer,
+        team: [battlerOf('paper', ['grass'], { hp: 1, defense: 1, 'special-defense': 1 }, ['vine'])],
+      }),
+      { kind: 'move', index: 0 },
+      options,
+    )
+    expect(frames.some((frame) => frame.beat?.fainted)).toBe(true)
   })
 
   it('sends in a replacement without spending a turn', () => {

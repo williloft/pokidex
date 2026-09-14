@@ -48,7 +48,7 @@ export function MovesetEditor({ member, moveIndex, onSave, onReset, onClose }: P
   useEffect(() => {
     const controller = new AbortController()
     setStatus('loading')
-    fetchLearnset(member.view.id, controller.signal)
+    fetchLearnset(member.view.id, member.pokemon.id, controller.signal)
       .then((result) => {
         setLearnset(result)
         setStatus('ready')
@@ -57,7 +57,7 @@ export function MovesetEditor({ member, moveIndex, onSave, onReset, onClose }: P
         if (!controller.signal.aborted) setStatus('error')
       })
     return () => controller.abort()
-  }, [member.view.id])
+  }, [member.view.id, member.pokemon.id])
 
   // Esc closes, as it would for any other dialog.
   useEffect(() => {

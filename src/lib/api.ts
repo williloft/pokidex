@@ -193,8 +193,16 @@ const learnsetMemory = new Map<number, LearnedMove[]>()
  * Keyed by the variant's own id rather than the species, because a regional
  * form does not learn what the base form learns — Alolan Raichu is not Raichu
  * with different colours.
+ *
+ * `fallbackId` covers the forms the API treats as a look rather than a
+ * Pokémon: every Gigantamax entry comes back with an empty move list, and it
+ * plainly still knows what the species knows.
  */
-export async function fetchLearnset(id: number, signal?: AbortSignal): Promise<LearnedMove[]> {
+export async function fetchLearnset(
+  id: number,
+  fallbackId?: number,
+  signal?: AbortSignal,
+): Promise<LearnedMove[]> {
   const cached = learnsetMemory.get(id)
   if (cached) return cached
 
@@ -202,7 +210,12 @@ export async function fetchLearnset(id: number, signal?: AbortSignal): Promise<L
   if (!res.ok) throw new Error(`Could not load moves for ${id} (${res.status})`)
 
   const pokemon = await res.json()
-  const learnset = collectLearnset((pokemon.moves ?? []) as RawMoveEntry[], versionGroupOrder)
+  let learnset = collectLearnset((pokemon.moves ?? []) as RawMoveEntry[], versionGroupOrder)
+
+  if (learnset.length === 0 && fallbackId !== undefined && fallbackId !== id) {
+    learnset = await fetchLearnset(fallbackId, undefined, signal)
+  }
+
   learnsetMemory.set(id, learnset)
   return learnset
 }

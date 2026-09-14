@@ -84,14 +84,21 @@ export function makeBattler(
   chosen?: readonly string[] | null,
 ): Battler {
   const maxHp = hpAtLevel(view.stats.hp)
-  return {
-    key,
-    pokemon,
-    view,
-    maxHp,
-    hp: maxHp,
-    moves: resolveMoves(chosen ?? view.moves ?? [], index),
+  let moves = resolveMoves(chosen ?? view.moves ?? [], index)
+
+  /*
+   * A form with no moveset of its own fights with the species'.
+   *
+   * Gigantamax forms are the case that matters: the API treats them as a look
+   * rather than a Pokémon and returns an empty move list for every one of
+   * them. The data build fills that in, but a dataset generated before it did
+   * would otherwise send them out with nothing but Struggle.
+   */
+  if (moves.length === 0 && view.name !== pokemon.name) {
+    moves = resolveMoves(pokemon.moves ?? [], index)
   }
+
+  return { key, pokemon, view, maxHp, hp: maxHp, moves }
 }
 
 export const isDown = (battler: Battler): boolean => battler.hp <= 0

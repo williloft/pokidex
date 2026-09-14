@@ -14,7 +14,28 @@ import type { Move, TypeChart } from './types'
 
 export type Phase = 'choosing' | 'must-switch' | 'over'
 
+/**
+ * What just happened, for the screen to play back.
+ *
+ * A turn is decided all at once but should not arrive all at once: the state
+ * machine emits one frame per beat, and the arena steps through them so you
+ * see your hit land before theirs does.
+ */
+export interface Beat {
+  kind: 'switch' | 'attack' | 'settle'
+  /** Whose action this was. */
+  side: 'player' | 'foe'
+  move?: string
+  damage?: number
+  multiplier?: number
+  missed?: boolean
+  recoil?: number
+  /** True when this beat knocked the target out. */
+  fainted?: boolean
+}
+
 export interface BattleState {
+  beat: Beat | null
   player: Battler[]
   foe: Battler[]
   trainer: Trainer
@@ -58,6 +79,7 @@ export function startBattle(player: Battler[], trainer: Trainer): BattleState {
     phase: 'choosing',
     winner: null,
     turn: 1,
+    beat: null,
   }
 }
 
@@ -125,7 +147,11 @@ function strike(
   }
 
   if (!willHit(move, roll)) {
-    return say(next, `${who} used ${moveName(move)}.`, 'It missed.')
+    return say(
+      { ...next, beat: { kind: 'attack', side, move: move.name, missed: true } },
+      `${who} used ${moveName(move)}.`,
+      'It missed.',
+    )
   }
 
   const result = computeDamage(chart, attacker, defender, move, roll)
@@ -164,15 +190,30 @@ function strike(
     next = say(next, `${who} was hurt by recoil.`)
   }
 
+  let fainted = false
   for (const [team, index] of [
     [side === 'player' ? next.foe : next.player, defenderIndex] as const,
     [side === 'player' ? next.player : next.foe, attackerIndex] as const,
   ]) {
     const member = team[index]
-    if (member && isDown(member)) next = say(next, `${member.view.title} fainted.`)
+    if (member && isDown(member)) {
+      fainted = true
+      next = say(next, `${member.view.title} fainted.`)
+    }
   }
 
-  return next
+  return {
+    ...next,
+    beat: {
+      kind: 'attack',
+      side,
+      move: move.name,
+      damage: result.damage,
+      multiplier: result.multiplier,
+      recoil: result.recoil,
+      fainted,
+    },
+  }
 }
 
 /** After damage, work out whether anyone needs to send something in. */
@@ -180,7 +221,7 @@ function settle(state: BattleState): BattleState {
   const playerDown = isDown(active(state.player, state.playerActive))
   const foeDown = isDown(active(state.foe, state.foeActive))
 
-  let next = state
+  let next: BattleState = { ...state, beat: { kind: 'settle', side: 'player' } }
 
   if (foeDown) {
     const replacement = livingIndex(next.foe)
@@ -210,18 +251,22 @@ interface TurnOptions {
 }
 
 /**
- * One exchange.
+ * One exchange, as a sequence of frames.
+ *
+ * The whole turn is decided here and now — who moves first, what lands, who
+ * faints — but it is handed back one beat at a time so the arena can play it
+ * out rather than snapping to the result. The last frame is the settled state.
  *
  * Switches happen before anything else and cost the side its attack, exactly
  * as they do in the games — that trade is the whole reason switching is a
  * decision rather than a free action.
  */
-export function takeTurn(
+export function resolveTurn(
   state: BattleState,
   playerAction: PlayerAction,
   { chart, difficulty, roll = Math.random }: TurnOptions,
-): BattleState {
-  if (state.phase !== 'choosing') return state
+): BattleState[] {
+  if (state.phase !== 'choosing') return [state]
 
   const foeAction = chooseOpponentAction(
     chart,
@@ -232,26 +277,40 @@ export function takeTurn(
     roll,
   )
 
+  const frames: BattleState[] = []
   let next = state
 
   if (playerAction.kind === 'switch') {
     const incoming = next.player[playerAction.index]
-    if (!incoming || isDown(incoming) || playerAction.index === next.playerActive) return state
-    next = say({ ...next, playerActive: playerAction.index }, `You send out ${incoming.view.title}.`)
+    if (!incoming || isDown(incoming) || playerAction.index === next.playerActive) return [state]
+    next = say(
+      { ...next, playerActive: playerAction.index, beat: { kind: 'switch', side: 'player' } },
+      `You send out ${incoming.view.title}.`,
+    )
+    frames.push(next)
   }
 
   if (foeAction.kind === 'switch') {
     const index = next.foe.findIndex((member) => member.key === foeAction.to.key)
     if (index >= 0) {
       next = say(
-        { ...next, foeActive: index },
+        { ...next, foeActive: index, beat: { kind: 'switch', side: 'foe' } },
         `${next.trainer.blueprint.name} switches to ${foeAction.to.view.title}.`,
       )
+      frames.push(next)
     }
   }
 
   const playerSlot = playerAction.kind === 'move' ? playerAction.index : null
   const foeSlot = foeAction.kind === 'move' ? foeAction.index : null
+
+  const swing = (side: 'player' | 'foe', slot: number) => {
+    const before = next
+    next = strike(next, chart, side, slot, roll)
+    // strike returns the state untouched when the attacker is already down;
+    // that is not a beat, and playing it back would be a pause for nothing.
+    if (next !== before) frames.push(next)
+  }
 
   if (playerSlot !== null && foeSlot !== null) {
     const you = active(next.player, next.playerActive)
@@ -259,19 +318,30 @@ export function takeTurn(
     const first = firstMover(you, them, moveAt(you, playerSlot), moveAt(them, foeSlot), roll)
 
     if (first === 'a') {
-      next = strike(next, chart, 'player', playerSlot, roll)
-      next = strike(next, chart, 'foe', foeSlot, roll)
+      swing('player', playerSlot)
+      swing('foe', foeSlot)
     } else {
-      next = strike(next, chart, 'foe', foeSlot, roll)
-      next = strike(next, chart, 'player', playerSlot, roll)
+      swing('foe', foeSlot)
+      swing('player', playerSlot)
     }
   } else if (playerSlot !== null) {
-    next = strike(next, chart, 'player', playerSlot, roll)
+    swing('player', playerSlot)
   } else if (foeSlot !== null) {
-    next = strike(next, chart, 'foe', foeSlot, roll)
+    swing('foe', foeSlot)
   }
 
-  return settle(next)
+  frames.push(settle(next))
+  return frames
+}
+
+/** The settled state, for callers that do not want to watch it happen. */
+export function takeTurn(
+  state: BattleState,
+  playerAction: PlayerAction,
+  options: TurnOptions,
+): BattleState {
+  const frames = resolveTurn(state, playerAction, options)
+  return frames[frames.length - 1]!
 }
 
 /** Sending in a replacement after a faint — free, and not a turn. */
@@ -281,7 +351,13 @@ export function sendIn(state: BattleState, index: number): BattleState {
   if (!incoming || isDown(incoming)) return state
 
   return say(
-    { ...state, playerActive: index, phase: 'choosing', turn: state.turn + 1 },
+    {
+      ...state,
+      playerActive: index,
+      phase: 'choosing',
+      turn: state.turn + 1,
+      beat: { kind: 'switch', side: 'player' },
+    },
     `You send out ${incoming.view.title}.`,
   )
 }

@@ -383,7 +383,14 @@ async function main() {
       .map((v) => {
         const { label, category } = describeForm(v.name, base.speciesName)
         const { speciesId: _s, speciesName: _n, isDefault: _d, learnable, ...rest } = v
-        return { ...rest, label, category, moves: chooseMoveset(rest, learnable, moves) }
+        /*
+         * Gigantamax forms come back with an empty move list — the API treats
+         * them as a look, not a moveset. They are still the same Pokémon and
+         * fight with the same moves, so fall back to the species' own list
+         * rather than sending them out with nothing but Struggle.
+         */
+        const source = learnable.length > 0 ? learnable : base.learnable
+        return { ...rest, label, category, moves: chooseMoveset(rest, source, moves) }
       })
       .sort(
         (a, b) =>
