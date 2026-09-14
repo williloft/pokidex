@@ -1,60 +1,81 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
-import type { Pokemon } from '../lib/types'
+import type { DexEntry } from '../lib/pokedex'
+import type { SpriteStyle } from '../lib/sprites'
 import { PokemonCard } from './PokemonCard'
 
 interface Props {
-  pokemon: Pokemon[]
+  entries: DexEntry[]
   shiny: boolean
+  spriteStyle: SpriteStyle
   inTeam: (id: number) => boolean
   teamFull: boolean
   onToggleTeam: (id: number) => void
 }
 
 const CARD_MIN_WIDTH = 210
-const ROW_HEIGHT = 290
+const ROW_HEIGHT = 310
 const GAP = 16
 
 /**
- * The whole dex is over a thousand entries. Rendering every card blows up the
- * DOM and the memory footprint, so rows are windowed — only what is on screen
+ * The dex runs past a thousand entries. Rendering every card blows up the DOM
+ * and the memory footprint, so rows are windowed — only what is on screen
  * (plus a small overscan) actually exists.
  */
-export function PokemonGrid({ pokemon, shiny, inTeam, teamFull, onToggleTeam }: Props) {
+export function PokemonGrid({
+  entries,
+  shiny,
+  spriteStyle,
+  inTeam,
+  teamFull,
+  onToggleTeam,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [columns, setColumns] = useState(1)
+  const [scrollMargin, setScrollMargin] = useState(0)
 
   useEffect(() => {
     const element = containerRef.current
     if (!element) return
 
     const measure = () => {
-      const width = element.clientWidth
-      setColumns(Math.max(1, Math.floor((width + GAP) / (CARD_MIN_WIDTH + GAP))))
+      setColumns(Math.max(1, Math.floor((element.clientWidth + GAP) / (CARD_MIN_WIDTH + GAP))))
+      // Where the grid starts down the page. This moves whenever the filter bar
+      // changes height — chips wrapping to another line, for instance — and a
+      // stale value puts every virtualised row at the wrong offset.
+      setScrollMargin(element.getBoundingClientRect().top + window.scrollY)
     }
 
     measure()
+
     const observer = new ResizeObserver(measure)
     observer.observe(element)
-    return () => observer.disconnect()
+    // The filter bar above us is what actually pushes the grid up and down.
+    if (element.parentElement) observer.observe(element.parentElement)
+
+    window.addEventListener('resize', measure)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', measure)
+    }
   }, [])
 
   const rows = useMemo(() => {
-    const chunks: Pokemon[][] = []
-    for (let i = 0; i < pokemon.length; i += columns) {
-      chunks.push(pokemon.slice(i, i + columns))
+    const chunks: DexEntry[][] = []
+    for (let i = 0; i < entries.length; i += columns) {
+      chunks.push(entries.slice(i, i + columns))
     }
     return chunks
-  }, [pokemon, columns])
+  }, [entries, columns])
 
   const virtualizer = useWindowVirtualizer({
     count: rows.length,
     estimateSize: () => ROW_HEIGHT + GAP,
     overscan: 4,
-    scrollMargin: containerRef.current?.offsetTop ?? 0,
+    scrollMargin,
   })
 
-  if (pokemon.length === 0) {
+  if (entries.length === 0) {
     return (
       <div ref={containerRef} className="empty">
         <p>Nothing matches those filters.</p>
@@ -84,10 +105,11 @@ export function PokemonGrid({ pokemon, shiny, inTeam, teamFull, onToggleTeam }: 
             >
               {row.map((entry) => (
                 <PokemonCard
-                  key={entry.id}
-                  pokemon={entry}
+                  key={entry.pokemon.id}
+                  entry={entry}
                   shiny={shiny}
-                  inTeam={inTeam(entry.id)}
+                  spriteStyle={spriteStyle}
+                  inTeam={inTeam(entry.pokemon.id)}
                   teamFull={teamFull}
                   onToggleTeam={onToggleTeam}
                 />

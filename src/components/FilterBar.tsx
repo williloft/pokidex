@@ -13,6 +13,7 @@ interface Props {
 }
 
 const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
+  { value: 'relevance', label: 'Best match' },
   { value: 'id', label: 'Dex number' },
   { value: 'name', label: 'Name' },
   { value: 'total', label: 'Base stat total' },
@@ -23,6 +24,9 @@ const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
   { value: 'special-defense', label: 'Sp. Def' },
   { value: 'speed', label: 'Speed' },
 ]
+
+/** Nothing is more than dual-typed, so a third choice would match nothing. */
+const MAX_TYPES = 2
 
 export function FilterBar({
   filters,
@@ -41,7 +45,7 @@ export function FilterBar({
   useEffect(() => setDraft(filters.query), [filters.query])
 
   // Typing is cheap to run against a local array, but debouncing keeps us from
-  // pushing a history entry on every keystroke.
+  // rewriting the URL on every keystroke.
   useEffect(() => {
     if (draft === filters.query) return
     const timer = setTimeout(() => update({ query: draft }), 120)
@@ -63,10 +67,12 @@ export function FilterBar({
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
 
+  const typesFull = filters.types.length >= MAX_TYPES
+
   const toggleType = (type: string) => {
     const next = filters.types.includes(type)
       ? filters.types.filter((entry) => entry !== type)
-      : [...filters.types, type].slice(-2) // two types is the most anything has
+      : [...filters.types, type]
     update({ types: next })
   }
 
@@ -88,7 +94,7 @@ export function FilterBar({
           type="search"
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          placeholder="Search by name or dex number…"
+          placeholder="Search by name, form or dex number…"
           aria-label="Search Pokémon"
           autoComplete="off"
           spellCheck={false}
@@ -97,20 +103,29 @@ export function FilterBar({
       </div>
 
       <div className="filters__row">
-        <span className="filters__legend">Type</span>
+        <span className="filters__legend">
+          Type
+          {typesFull ? <em className="filters__hint">max 2</em> : null}
+        </span>
         <div className="chips">
-          {allTypes.map((type) => (
-            <button
-              key={type}
-              type="button"
-              className={`chip chip--type ${filters.types.includes(type) ? 'chip--on' : ''}`}
-              style={{ '--type-color': `var(--type-${type})` } as React.CSSProperties}
-              aria-pressed={filters.types.includes(type)}
-              onClick={() => toggleType(type)}
-            >
-              {displayName(type)}
-            </button>
-          ))}
+          {allTypes.map((type) => {
+            const on = filters.types.includes(type)
+            return (
+              <button
+                key={type}
+                type="button"
+                className={`chip chip--type ${on ? 'chip--on' : ''}`}
+                style={{ '--type-color': `var(--type-${type})` } as React.CSSProperties}
+                aria-pressed={on}
+                // Silently dropping an earlier pick is worse than saying no.
+                disabled={typesFull && !on}
+                title={typesFull && !on ? 'Deselect a type first — nothing is triple-typed' : undefined}
+                onClick={() => toggleType(type)}
+              >
+                {displayName(type)}
+              </button>
+            )
+          })}
         </div>
       </div>
 
@@ -138,8 +153,6 @@ export function FilterBar({
           <select
             value={filters.sort}
             onChange={(event) => update({ sort: event.target.value as SortKey })}
-            disabled={filters.query !== ''}
-            title={filters.query ? 'Search results are ordered by relevance' : undefined}
           >
             {SORT_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>
@@ -153,15 +166,18 @@ export function FilterBar({
           type="button"
           className="chip"
           onClick={() => update({ direction: filters.direction === 'asc' ? 'desc' : 'asc' })}
-          disabled={filters.query !== ''}
+          disabled={filters.sort === 'relevance' && filters.query !== ''}
+          title={
+            filters.sort === 'relevance' && filters.query !== ''
+              ? 'Best match has its own order'
+              : undefined
+          }
         >
           {filters.direction === 'asc' ? '↑ Ascending' : '↓ Descending'}
         </button>
 
         <p className="filters__count" role="status">
-          {resultCount === totalCount
-            ? `${totalCount} Pokémon`
-            : `${resultCount} of ${totalCount}`}
+          {resultCount === totalCount ? `${totalCount} Pokémon` : `${resultCount} of ${totalCount}`}
         </p>
 
         {hasFilters ? (

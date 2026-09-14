@@ -4,8 +4,8 @@
  *
  * PokéAPI's fair-use policy asks consumers to cache locally rather than hammer
  * the API on every page load. So instead of fetching at runtime, we pull the
- * whole national dex once, here, and commit the result as static JSON. The app
- * then ships with an index it can search instantly and offline.
+ * whole dex once, here, and commit the result as static JSON. The app then
+ * ships with an index it can search instantly and offline.
  *
  * Responses are also cached on disk in .cache/ so re-running is nearly free.
  *
@@ -25,7 +25,7 @@ const BASE = 'https://pokeapi.co/api/v2'
 const CONCURRENCY = 16
 const FRESH = process.argv.includes('--fresh')
 
-/** Types that exist in the API but not in any real battle. */
+/** Types that exist in the API but that nothing is ever actually typed as. */
 const EXCLUDED_TYPES = new Set(['unknown', 'shadow', 'stellar'])
 
 /** @type {(path: string) => string} */
@@ -86,7 +86,7 @@ async function buildTypeChart() {
   return { types: names.sort(), chart }
 }
 
-/** species name -> { id, name } of the generation it was introduced in. */
+/** species name -> id of the generation it was introduced in. */
 async function buildGenerationMap() {
   const { results } = await get('generation?limit=100')
   const map = new Map()
@@ -94,15 +94,67 @@ async function buildGenerationMap() {
 
   for (const entry of results) {
     const gen = await get(`generation/${entry.name}`)
-    const id = gen.id
-    const region = gen.main_region?.name ?? null
-    labels.push({ id, name: entry.name, region })
-    for (const species of gen.pokemon_species) map.set(species.name, id)
+    labels.push({ id: gen.id, name: entry.name, region: gen.main_region?.name ?? null })
+    for (const species of gen.pokemon_species) map.set(species.name, gen.id)
   }
 
   labels.sort((a, b) => a.id - b.id)
   return { map, labels }
 }
+
+const REGIONAL_MARKERS = ['alola', 'galar', 'hisui', 'paldea']
+
+/**
+ * Turn "charizard-mega-x" into { label: "Mega X", category: "mega" }.
+ *
+ * The API has no field for this — a form is just a Pokémon whose name starts
+ * with its species name — so the suffix is all we have to go on.
+ */
+function describeForm(formName, speciesName) {
+  const suffix = formName.startsWith(`${speciesName}-`)
+    ? formName.slice(speciesName.length + 1)
+    : formName
+
+  const parts = suffix.split('-')
+  const label = parts
+    .map((part) => (part.length <= 2 ? part.toUpperCase() : part[0].toUpperCase() + part.slice(1)))
+    .join(' ')
+
+  let category = 'other'
+  if (parts.includes('mega')) category = 'mega'
+  else if (parts.includes('gmax')) category = 'gmax'
+  else if (parts.some((part) => REGIONAL_MARKERS.includes(part))) category = 'regional'
+
+  return { label, category }
+}
+
+/** Pull the fields we keep out of a raw /pokemon response. */
+function shape(p) {
+  const stats = {}
+  for (const s of p.stats) stats[s.stat.name] = s.base_stat
+
+  return {
+    id: p.id,
+    name: p.name,
+    types: [...p.types].sort((a, b) => a.slot - b.slot).map((t) => t.type.name),
+    stats: {
+      hp: stats['hp'] ?? 0,
+      attack: stats['attack'] ?? 0,
+      defense: stats['defense'] ?? 0,
+      'special-attack': stats['special-attack'] ?? 0,
+      'special-defense': stats['special-defense'] ?? 0,
+      speed: stats['speed'] ?? 0,
+    },
+    height: p.height,
+    weight: p.weight,
+    abilities: [...p.abilities]
+      .sort((a, b) => a.slot - b.slot)
+      .map((a) => ({ name: a.ability.name, hidden: a.is_hidden })),
+  }
+}
+
+/** Megas and Gigantamax first — they are what people come looking for. */
+const FORM_ORDER = { mega: 0, gmax: 1, regional: 2, other: 3 }
 
 async function main() {
   await mkdir(CACHE_DIR, { recursive: true })
@@ -114,42 +166,63 @@ async function main() {
   console.log('→ generations')
   const { map: genMap, labels: generations } = await buildGenerationMap()
 
-  // The national dex is exactly the set of species. Every species id has a
-  // default form under /pokemon/{id}, so we can address them by number and
-  // skip the alternate forms that live above id 10000.
-  const { count } = await get('pokemon-species?limit=1')
-  console.log(`→ ${count} species`)
+  // /pokemon lists every variety, alternate forms included — those live above
+  // id 10000. We fetch the lot and group them under their species, so the grid
+  // can stay one card per species while each card still knows its forms.
+  const { results: allEntries } = await get('pokemon?limit=100000')
+  console.log(`→ ${allEntries.length} entries (species + forms)`)
 
-  const ids = Array.from({ length: count }, (_, i) => i + 1)
-  const pokemon = await pool(
-    ids,
-    async (id) => {
-      const p = await get(`pokemon/${id}`)
-      const stats = {}
-      for (const s of p.stats) stats[s.stat.name] = s.base_stat
+  const raw = await pool(
+    allEntries,
+    async (entry) => {
+      const p = await get(`pokemon/${idFromUrl(entry.url)}`)
       return {
-        id: p.id,
-        name: p.name,
-        types: p.types.sort((a, b) => a.slot - b.slot).map((t) => t.type.name),
-        stats: {
-          hp: stats['hp'] ?? 0,
-          attack: stats['attack'] ?? 0,
-          defense: stats['defense'] ?? 0,
-          'special-attack': stats['special-attack'] ?? 0,
-          'special-defense': stats['special-defense'] ?? 0,
-          speed: stats['speed'] ?? 0,
-        },
-        height: p.height,
-        weight: p.weight,
-        abilities: p.abilities
-          .sort((a, b) => a.slot - b.slot)
-          .map((a) => ({ name: a.ability.name, hidden: a.is_hidden })),
-        generation: genMap.get(p.species.name) ?? idFromUrl(p.species.url) ?? 1,
+        ...shape(p),
+        isDefault: p.is_default === true,
+        speciesId: idFromUrl(p.species.url),
+        speciesName: p.species.name,
       }
     },
     (done, total) => process.stdout.write(`\r  ${done}/${total}`),
   )
   process.stdout.write('\n')
+
+  const bySpecies = new Map()
+  for (const entry of raw) {
+    if (!bySpecies.has(entry.speciesId)) bySpecies.set(entry.speciesId, [])
+    bySpecies.get(entry.speciesId).push(entry)
+  }
+
+  const pokemon = []
+  for (const [speciesId, varieties] of bySpecies) {
+    const base = varieties.find((v) => v.isDefault) ?? varieties[0]
+    if (!base) continue
+
+    const forms = varieties
+      .filter((v) => v !== base)
+      .map((v) => {
+        const { label, category } = describeForm(v.name, base.speciesName)
+        const { speciesId: _s, speciesName: _n, isDefault: _d, ...rest } = v
+        return { ...rest, label, category }
+      })
+      .sort(
+        (a, b) =>
+          (FORM_ORDER[a.category] ?? 9) - (FORM_ORDER[b.category] ?? 9) ||
+          a.label.localeCompare(b.label),
+      )
+
+    const { speciesId: _s, speciesName: _n, isDefault: _d, ...core } = base
+    pokemon.push({
+      ...core,
+      id: speciesId,
+      generation: genMap.get(base.speciesName) ?? 1,
+      forms,
+    })
+  }
+
+  pokemon.sort((a, b) => a.id - b.id)
+
+  const formCount = pokemon.reduce((sum, entry) => sum + entry.forms.length, 0)
 
   await writeFile(
     join(OUT_DIR, 'pokedex.json'),
@@ -157,7 +230,9 @@ async function main() {
   )
   await writeFile(join(OUT_DIR, 'type-chart.json'), JSON.stringify({ types, chart }, null, 2))
 
-  console.log(`✓ wrote ${pokemon.length} Pokémon and ${types.length} types to public/data/`)
+  console.log(
+    `✓ wrote ${pokemon.length} Pokémon (+${formCount} forms) and ${types.length} types to public/data/`,
+  )
 }
 
 main().catch((err) => {

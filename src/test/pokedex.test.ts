@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_FILTERS, dexNumber, displayName, filterAndSort } from '../lib/pokedex'
-import type { Pokemon, Stats } from '../lib/types'
+import type { Pokemon, PokemonForm, Stats } from '../lib/types'
 
 const stats = (overrides: Partial<Stats> = {}): Stats => ({
   hp: 50,
@@ -12,12 +12,25 @@ const stats = (overrides: Partial<Stats> = {}): Stats => ({
   ...overrides,
 })
 
+const form = (id: number, name: string, label: string, types: string[]): PokemonForm => ({
+  id,
+  name,
+  label,
+  category: 'mega',
+  types,
+  stats: stats({ attack: 130 }),
+  height: 17,
+  weight: 1005,
+  abilities: [],
+})
+
 const entry = (
   id: number,
   name: string,
   types: string[],
   generation: number,
   statOverrides: Partial<Stats> = {},
+  forms: PokemonForm[] = [],
 ): Pokemon => ({
   id,
   name,
@@ -27,11 +40,16 @@ const entry = (
   weight: 100,
   abilities: [],
   generation,
+  forms,
 })
 
 const dex: Pokemon[] = [
   entry(1, 'bulbasaur', ['grass', 'poison'], 1, { speed: 45 }),
   entry(4, 'charmander', ['fire'], 1, { speed: 65 }),
+  entry(6, 'charizard', ['fire', 'flying'], 1, { speed: 100 }, [
+    form(10034, 'charizard-mega-x', 'Mega X', ['fire', 'dragon']),
+    form(10035, 'charizard-mega-y', 'Mega Y', ['fire', 'flying']),
+  ]),
   entry(7, 'squirtle', ['water'], 1, { defense: 65 }),
   entry(25, 'pikachu', ['electric'], 1, { speed: 90 }),
   entry(252, 'treecko', ['grass'], 3, { speed: 70 }),
@@ -39,6 +57,8 @@ const dex: Pokemon[] = [
 ]
 
 const withFilters = (patch: Partial<typeof DEFAULT_FILTERS>) => ({ ...DEFAULT_FILTERS, ...patch })
+const names = (results: ReturnType<typeof filterAndSort>) =>
+  results.map((result) => result.pokemon.name)
 
 describe('displayName', () => {
   it('title-cases each part of a hyphenated name', () => {
@@ -64,47 +84,46 @@ describe('filterAndSort', () => {
   })
 
   it('filters by generation', () => {
-    const result = filterAndSort(dex, withFilters({ generations: [3, 4] }))
-    expect(result.map((p) => p.name)).toEqual(['treecko', 'turtwig'])
+    expect(names(filterAndSort(dex, withFilters({ generations: [3, 4] })))).toEqual([
+      'treecko',
+      'turtwig',
+    ])
   })
 
   it('requires every selected type to be present', () => {
-    expect(filterAndSort(dex, withFilters({ types: ['grass'] })).map((p) => p.name)).toEqual([
+    expect(names(filterAndSort(dex, withFilters({ types: ['grass'] })))).toEqual([
       'bulbasaur',
       'treecko',
       'turtwig',
     ])
 
-    expect(
-      filterAndSort(dex, withFilters({ types: ['grass', 'poison'] })).map((p) => p.name),
-    ).toEqual(['bulbasaur'])
+    expect(names(filterAndSort(dex, withFilters({ types: ['grass', 'poison'] })))).toEqual([
+      'bulbasaur',
+    ])
   })
 
   it('combines type and generation filters', () => {
-    const result = filterAndSort(dex, withFilters({ types: ['grass'], generations: [1] }))
-    expect(result.map((p) => p.name)).toEqual(['bulbasaur'])
+    expect(names(filterAndSort(dex, withFilters({ types: ['grass'], generations: [1] })))).toEqual([
+      'bulbasaur',
+    ])
   })
 
   it('matches a name prefix ahead of a mid-string match', () => {
-    const result = filterAndSort(dex, withFilters({ query: 'char' }))
-    expect(result[0]?.name).toBe('charmander')
+    expect(names(filterAndSort(dex, withFilters({ query: 'charm' })))[0]).toBe('charmander')
   })
 
   it('treats a numeric query as a dex-number prefix, lowest first', () => {
     // "25" should reach #25 and #252 alike — typing a number narrows, it does
     // not demand an exact hit.
-    const result = filterAndSort(dex, withFilters({ query: '25' }))
-    expect(result.map((p) => p.name)).toEqual(['pikachu', 'treecko'])
+    expect(names(filterAndSort(dex, withFilters({ query: '25' })))).toEqual(['pikachu', 'treecko'])
   })
 
   it('matches an exact dex number on its own', () => {
-    const result = filterAndSort(dex, withFilters({ query: '387' }))
-    expect(result.map((p) => p.name)).toEqual(['turtwig'])
+    expect(names(filterAndSort(dex, withFilters({ query: '387' })))).toEqual(['turtwig'])
   })
 
   it('falls back to a subsequence match for sloppy typing', () => {
-    const result = filterAndSort(dex, withFilters({ query: 'sqrtl' }))
-    expect(result.map((p) => p.name)).toContain('squirtle')
+    expect(names(filterAndSort(dex, withFilters({ query: 'sqrtl' })))).toContain('squirtle')
   })
 
   it('returns nothing when the query matches nothing', () => {
@@ -112,19 +131,63 @@ describe('filterAndSort', () => {
   })
 
   it('sorts by a base stat, descending', () => {
-    const result = filterAndSort(dex, withFilters({ sort: 'speed', direction: 'desc' }))
-    expect(result[0]?.name).toBe('pikachu')
+    expect(names(filterAndSort(dex, withFilters({ sort: 'speed', direction: 'desc' })))[0]).toBe(
+      'charizard',
+    )
   })
 
   it('sorts by name ascending', () => {
-    const result = filterAndSort(dex, withFilters({ sort: 'name' }))
-    expect(result[0]?.name).toBe('bulbasaur')
-    expect(result.at(-1)?.name).toBe('turtwig')
+    const result = names(filterAndSort(dex, withFilters({ sort: 'name' })))
+    expect(result[0]).toBe('bulbasaur')
+    expect(result.at(-1)).toBe('turtwig')
+  })
+
+  it('falls back to dex order when sorting by relevance without a query', () => {
+    expect(names(filterAndSort(dex, withFilters({ sort: 'relevance' })))).toEqual([
+      'bulbasaur',
+      'charmander',
+      'charizard',
+      'squirtle',
+      'pikachu',
+      'treecko',
+      'turtwig',
+    ])
+  })
+
+  it('lets an explicit sort override relevance while searching', () => {
+    const result = filterAndSort(dex, withFilters({ query: 'char', sort: 'id', direction: 'desc' }))
+    expect(names(result)).toEqual(['charizard', 'charmander'])
   })
 
   it('breaks ties on dex number so the order is stable', () => {
     const tied = [entry(9, 'b-mon', ['normal'], 1), entry(2, 'a-mon', ['normal'], 1)]
     const result = filterAndSort(tied, withFilters({ sort: 'total' }))
-    expect(result.map((p) => p.id)).toEqual([2, 9])
+    expect(result.map((item) => item.pokemon.id)).toEqual([2, 9])
+  })
+})
+
+describe('filterAndSort with alternate forms', () => {
+  it('surfaces a species whose form carries the filtered type', () => {
+    // Charizard is Fire/Flying, but Mega X is Fire/Dragon.
+    const result = filterAndSort(dex, withFilters({ types: ['dragon'] }))
+    expect(names(result)).toEqual(['charizard'])
+    expect(result[0]?.formName).toBe('charizard-mega-x')
+  })
+
+  it('prefers the base form when it already qualifies', () => {
+    const result = filterAndSort(dex, withFilters({ types: ['fire', 'flying'] }))
+    expect(result[0]?.pokemon.name).toBe('charizard')
+    expect(result[0]?.formName).toBeNull()
+  })
+
+  it('finds a form by name and selects it', () => {
+    const result = filterAndSort(dex, withFilters({ query: 'mega x' }))
+    expect(result[0]?.pokemon.name).toBe('charizard')
+    expect(result[0]?.formName).toBe('charizard-mega-x')
+  })
+
+  it('does not duplicate a species that has several matching forms', () => {
+    const result = filterAndSort(dex, withFilters({ types: ['fire'] }))
+    expect(names(result).filter((name) => name === 'charizard')).toHaveLength(1)
   })
 })

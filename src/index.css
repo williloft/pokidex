@@ -102,6 +102,11 @@ a {
 
 .app {
   min-height: 100vh;
+  /* Only reserve room for the team bar when there is one. */
+  padding-bottom: 32px;
+}
+
+.app[data-teambar='true'] {
   padding-bottom: 96px;
 }
 
@@ -178,6 +183,24 @@ a {
   font-size: 0.72rem;
   font-weight: 700;
   text-align: center;
+}
+
+.topbar__prefs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sprite-style select {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-raised);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 550;
+  cursor: pointer;
 }
 
 .shiny-toggle {
@@ -375,6 +398,16 @@ a {
   border-top: 1px solid var(--border);
 }
 
+.filters__hint {
+  margin-inline-start: 6px;
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  font-style: normal;
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 0.85;
+}
+
 .filters__legend {
   min-width: 72px;
   color: var(--text-dim);
@@ -434,23 +467,53 @@ a {
 
 .card {
   position: relative;
-  height: 290px;
+  height: 310px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  /* Primary type owns the card: a glow from the top edge. */
   background:
     radial-gradient(
       120% 80% at 50% 0%,
       color-mix(in srgb, var(--card-primary) 26%, transparent) 0%,
       transparent 70%
     ),
-    linear-gradient(
-      160deg,
-      color-mix(in srgb, var(--card-secondary) 10%, transparent),
-      transparent 60%
-    ),
     var(--bg-raised);
   overflow: hidden;
   transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+/*
+ * Dual types get the second colour as a quiet wash in the opposite corner and a
+ * hairline along the top that hands off from one type to the other. Enough to
+ * read the pairing at a glance, not enough to fight the artwork.
+ */
+.card--dual {
+  background:
+    radial-gradient(
+      120% 80% at 50% 0%,
+      color-mix(in srgb, var(--card-primary) 26%, transparent) 0%,
+      transparent 70%
+    ),
+    radial-gradient(
+      90% 70% at 100% 100%,
+      color-mix(in srgb, var(--card-secondary) 15%, transparent) 0%,
+      transparent 65%
+    ),
+    var(--bg-raised);
+}
+
+.card--dual::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--card-primary) 0%,
+    var(--card-primary) 55%,
+    var(--card-secondary) 100%
+  );
+  opacity: 0.7;
 }
 
 .card:hover {
@@ -465,7 +528,8 @@ a {
   justify-items: center;
   gap: 6px;
   height: 100%;
-  padding: 12px;
+  /* Bottom room for the form swatches, which sit over the card. */
+  padding: 12px 12px 28px;
   text-decoration: none;
 }
 
@@ -497,9 +561,20 @@ a {
 }
 
 .card__name {
+  display: grid;
+  justify-items: center;
+  gap: 1px;
   font-size: 0.98rem;
   font-weight: 650;
   text-align: center;
+}
+
+.card__form {
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .card__types {
@@ -544,6 +619,108 @@ a {
 .card__team:disabled {
   opacity: 0.3;
   cursor: not-allowed;
+}
+
+/* ---------------------------------------------------------------------------
+   Sprites and form swatches
+   --------------------------------------------------------------------------- */
+
+/*
+ * Sprite swaps its src only once the replacement has decoded, so this fade
+ * covers the handover instead of a blank frame.
+ */
+.sprite {
+  opacity: 0;
+  transition: opacity 0.18s ease;
+}
+
+.sprite--ready {
+  opacity: 1;
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.swatches--sm {
+  position: absolute;
+  bottom: 8px;
+  left: 0;
+  right: 0;
+  justify-content: center;
+}
+
+.swatch {
+  padding: 0;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.swatches--sm .swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  /* Split circle: primary type on the left, secondary on the right. */
+  background: linear-gradient(
+    90deg,
+    var(--swatch-primary) 0 50%,
+    var(--swatch-secondary) 50% 100%
+  );
+}
+
+.swatches--sm .swatch:hover {
+  transform: scale(1.18);
+}
+
+.swatches--sm .swatch--on {
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px var(--bg-raised), 0 0 0 3px var(--text);
+}
+
+.swatches--md {
+  gap: 6px;
+}
+
+.swatches--md .swatch {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 13px 5px 9px;
+  border-radius: 999px;
+  background: var(--bg-sunken);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.swatches--md .swatch::before {
+  content: '';
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: linear-gradient(
+    90deg,
+    var(--swatch-primary) 0 50%,
+    var(--swatch-secondary) 50% 100%
+  );
+}
+
+.swatches--md .swatch--on {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--bg);
+}
+
+.detail__forms {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
 }
 
 /* ---------------------------------------------------------------------------
@@ -1047,9 +1224,19 @@ a {
   }
 }
 
+/*
+ * Card-to-detail morph. Each artwork carries a view-transition-name built from
+ * its id, and the card only claims that name while it is being navigated from —
+ * so exactly one element owns it on each side of the transition.
+ */
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation-duration: 0.22s;
+}
+
+::view-transition-group(*) {
+  animation-duration: 0.28s;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 @media (prefers-reduced-motion: reduce) {

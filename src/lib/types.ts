@@ -13,7 +13,27 @@ export interface Ability {
   hidden: boolean
 }
 
-/** One entry of the static index that ships with the app. */
+export type FormCategory = 'mega' | 'gmax' | 'regional' | 'other'
+
+/**
+ * An alternate form of a species — a Mega, a Gigantamax, a regional variant.
+ * These are separate Pokémon in the API (ids above 10000) with their own
+ * typing and stats, which is exactly why they are worth showing.
+ */
+export interface PokemonForm {
+  id: number
+  name: string
+  /** Short human label, e.g. "Mega X" or "Alola". */
+  label: string
+  category: FormCategory
+  types: string[]
+  stats: Stats
+  height: number
+  weight: number
+  abilities: Ability[]
+}
+
+/** One entry of the static index that ships with the app. One per species. */
 export interface Pokemon {
   id: number
   name: string
@@ -25,6 +45,7 @@ export interface Pokemon {
   weight: number
   abilities: Ability[]
   generation: number
+  forms: PokemonForm[]
 }
 
 export interface Generation {
@@ -64,6 +85,60 @@ export interface EvolutionNode {
   /** How this stage is reached from its parent. Empty for the base stage. */
   trigger: string | null
   children: EvolutionNode[]
+}
+
+/**
+ * A species or one of its forms, flattened into the shape every component
+ * actually needs. Lets a card or a detail page render "whichever variant is
+ * selected" without caring which kind it is.
+ */
+export interface FormView {
+  /** Sprite id — the species number, or the form's own id above 10000. */
+  id: number
+  name: string
+  label: string
+  category: FormCategory | 'default'
+  types: string[]
+  stats: Stats
+  height: number
+  weight: number
+  abilities: Ability[]
+}
+
+const baseView = (pokemon: Pokemon): FormView => ({
+  id: pokemon.id,
+  name: pokemon.name,
+  label: 'Base',
+  category: 'default',
+  types: pokemon.types,
+  stats: pokemon.stats,
+  height: pokemon.height,
+  weight: pokemon.weight,
+  abilities: pokemon.abilities,
+})
+
+/** Every selectable variant of a species, base form first. */
+export function formViews(pokemon: Pokemon): FormView[] {
+  return [
+    baseView(pokemon),
+    ...pokemon.forms.map((form) => ({
+      id: form.id,
+      name: form.name,
+      label: form.label,
+      category: form.category,
+      types: form.types,
+      stats: form.stats,
+      height: form.height,
+      weight: form.weight,
+      abilities: form.abilities,
+    })),
+  ]
+}
+
+/** Look up a form by its API name, falling back to the base form. */
+export function resolveForm(pokemon: Pokemon, formName?: string | null): FormView {
+  if (!formName) return baseView(pokemon)
+  return formViews(pokemon).find((view) => view.name === formName) ?? baseView(pokemon)
 }
 
 export const STAT_LABELS: Record<StatName, string> = {

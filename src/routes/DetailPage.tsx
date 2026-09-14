@@ -1,24 +1,30 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useDex } from '../App'
 import { EvolutionChain } from '../components/EvolutionChain'
+import { FormSwatches } from '../components/FormSwatches'
+import { Sprite } from '../components/Sprite'
 import { StatBars } from '../components/StatBars'
 import { TypeBadge } from '../components/TypeBadge'
 import { fetchDetail } from '../lib/api'
+import { dexHref } from '../lib/dexLocation'
 import { dexNumber, displayName } from '../lib/pokedex'
-import { artwork, crySrc } from '../lib/sprites'
-import type { PokemonDetail } from '../lib/types'
+import { crySrc, type SpriteStyle } from '../lib/sprites'
+import { formViews, resolveForm, type PokemonDetail } from '../lib/types'
 import { defensiveProfile } from '../lib/typeChart'
+import { useDocumentTitle } from '../lib/useScrollRestoration'
 
 interface Props {
   shiny: boolean
+  spriteStyle: SpriteStyle
   inTeam: (id: number) => boolean
   teamFull: boolean
   onToggleTeam: (id: number) => void
 }
 
-export function DetailPage({ shiny, inTeam, teamFull, onToggleTeam }: Props) {
+export function DetailPage({ shiny, spriteStyle, inTeam, teamFull, onToggleTeam }: Props) {
   const { name = '' } = useParams()
+  const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
   const { byName, byId, typeData } = useDex()
   const pokemon = byName.get(name.toLowerCase())
@@ -26,6 +32,13 @@ export function DetailPage({ shiny, inTeam, teamFull, onToggleTeam }: Props) {
   const [detail, setDetail] = useState<PokemonDetail | null>(null)
   const [detailError, setDetailError] = useState<string | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+
+  const view = pokemon ? resolveForm(pokemon, params.get('form')) : null
+  useDocumentTitle(
+    pokemon && view
+      ? `${displayName(pokemon.name)}${view.category === 'default' ? '' : ` · ${view.label}`} · Pokédex`
+      : 'Pokédex',
+  )
 
   useEffect(() => {
     if (!pokemon) return
@@ -41,42 +54,64 @@ export function DetailPage({ shiny, inTeam, teamFull, onToggleTeam }: Props) {
     return () => controller.abort()
   }, [pokemon])
 
-  // Arrow keys walk the dex, the way the handheld ones do.
+  // Arrow keys walk the dex, the way the handheld ones do — but never while a
+  // control has focus, and never when a modifier suggests a browser shortcut.
   useEffect(() => {
     if (!pokemon) return
     const onKeyDown = (event: KeyboardEvent) => {
+      if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+
       const target = event.target as HTMLElement | null
-      if (target?.tagName === 'INPUT' || target?.tagName === 'SELECT') return
+      if (
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'SELECT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.isContentEditable
+      ) {
+        return
+      }
+
       const step = event.key === 'ArrowLeft' ? -1 : event.key === 'ArrowRight' ? 1 : 0
       if (step === 0) return
+
       const neighbour = byId.get(pokemon.id + step)
-      if (neighbour) navigate(`/pokemon/${neighbour.name}`)
+      if (!neighbour) return
+      event.preventDefault()
+      navigate(`/pokemon/${neighbour.name}`)
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [pokemon, byId, navigate])
 
-  if (!pokemon) {
+  if (!pokemon || !view) {
     return (
       <div className="notice">
         <h1>Not in the dex</h1>
         <p>No Pokémon named “{name}”.</p>
-        <Link className="button" to="/">
+        <Link className="button" to={dexHref()}>
           Back to the dex
         </Link>
       </div>
     )
   }
 
-  const primary = pokemon.types[0] ?? 'normal'
-  const profile = defensiveProfile(typeData.chart, typeData.types, pokemon.types)
+  const views = formViews(pokemon)
+  const primary = view.types[0] ?? 'normal'
+  const profile = defensiveProfile(typeData.chart, typeData.types, view.types)
   const previous = byId.get(pokemon.id - 1)
   const next = byId.get(pokemon.id + 1)
   const isInTeam = inTeam(pokemon.id)
 
+  const selectForm = (formName: string) => {
+    const nextParams = new URLSearchParams(params)
+    if (formName === pokemon.name) nextParams.delete('form')
+    else nextParams.set('form', formName)
+    setParams(nextParams, { replace: true })
+  }
+
   const playCry = () => {
     audioRef.current ??= new Audio()
-    audioRef.current.src = crySrc(pokemon.id)
+    audioRef.current.src = crySrc(view.id)
     audioRef.current.volume = 0.4
     void audioRef.current.play().catch(() => {
       // Autoplay policy or a missing cry file — not worth interrupting for.
@@ -89,17 +124,17 @@ export function DetailPage({ shiny, inTeam, teamFull, onToggleTeam }: Props) {
       style={{ '--accent': `var(--type-${primary})` } as React.CSSProperties}
     >
       <nav className="detail__nav">
-        <Link className="chip" to="/">
+        <Link className="chip" to={dexHref()} viewTransition>
           ← Dex
         </Link>
         <div className="detail__steps">
           {previous ? (
-            <Link className="chip" to={`/pokemon/${previous.name}`}>
+            <Link className="chip" to={`/pokemon/${previous.name}`} viewTransition>
               ← {displayName(previous.name)}
             </Link>
           ) : null}
           {next ? (
-            <Link className="chip" to={`/pokemon/${next.name}`}>
+            <Link className="chip" to={`/pokemon/${next.name}`} viewTransition>
               {displayName(next.name)} →
             </Link>
           ) : null}
@@ -108,12 +143,14 @@ export function DetailPage({ shiny, inTeam, teamFull, onToggleTeam }: Props) {
 
       <header className="detail__hero">
         <div className="detail__art">
-          <img
-            src={artwork(pokemon.id, shiny)}
-            alt={displayName(pokemon.name)}
-            width={360}
-            height={360}
-            style={{ viewTransitionName: `art-${pokemon.id}` }}
+          <Sprite
+            id={view.id}
+            alt={displayName(view.name)}
+            shiny={shiny}
+            style={spriteStyle}
+            size={360}
+            priority
+            transitionName={`art-${view.id}`}
           />
         </div>
 
@@ -122,8 +159,21 @@ export function DetailPage({ shiny, inTeam, teamFull, onToggleTeam }: Props) {
           <h1>{displayName(pokemon.name)}</h1>
           {detail?.genus ? <p className="detail__genus">{detail.genus}</p> : null}
 
+          {views.length > 1 ? (
+            <div className="detail__forms">
+              <span className="filters__legend">Form</span>
+              <FormSwatches
+                views={views}
+                selected={view.name}
+                onSelect={selectForm}
+                size="md"
+                name={displayName(pokemon.name)}
+              />
+            </div>
+          ) : null}
+
           <div className="detail__types">
-            {pokemon.types.map((type) => (
+            {view.types.map((type) => (
               <TypeBadge key={type} type={type} size="md" link />
             ))}
           </div>
@@ -134,11 +184,11 @@ export function DetailPage({ shiny, inTeam, teamFull, onToggleTeam }: Props) {
           <dl className="detail__facts">
             <div>
               <dt>Height</dt>
-              <dd>{(pokemon.height / 10).toFixed(1)} m</dd>
+              <dd>{(view.height / 10).toFixed(1)} m</dd>
             </div>
             <div>
               <dt>Weight</dt>
-              <dd>{(pokemon.weight / 10).toFixed(1)} kg</dd>
+              <dd>{(view.weight / 10).toFixed(1)} kg</dd>
             </div>
             <div>
               <dt>Generation</dt>
@@ -147,9 +197,9 @@ export function DetailPage({ shiny, inTeam, teamFull, onToggleTeam }: Props) {
             <div>
               <dt>Abilities</dt>
               <dd>
-                {pokemon.abilities
+                {view.abilities
                   .map((ability) => displayName(ability.name) + (ability.hidden ? ' (hidden)' : ''))
-                  .join(', ')}
+                  .join(', ') || '—'}
               </dd>
             </div>
           </dl>
@@ -173,12 +223,15 @@ export function DetailPage({ shiny, inTeam, teamFull, onToggleTeam }: Props) {
       <div className="detail__panels">
         <section className="panel">
           <h2>Base stats</h2>
-          <StatBars stats={pokemon.stats} accent={primary} />
+          <StatBars stats={view.stats} accent={primary} />
         </section>
 
         <section className="panel">
           <h2>Defensive matchups</h2>
-          <p className="panel__note">Damage taken from each attacking type.</p>
+          <p className="panel__note">
+            Damage taken from each attacking type
+            {view.category === 'default' ? '.' : `, as ${view.label}.`}
+          </p>
 
           <h3>Weak to</h3>
           <div className="matchups">
@@ -227,7 +280,12 @@ export function DetailPage({ shiny, inTeam, teamFull, onToggleTeam }: Props) {
         <section className="panel">
           <h2>Evolution</h2>
           {detail?.evolution ? (
-            <EvolutionChain node={detail.evolution} shiny={shiny} currentId={pokemon.id} />
+            <EvolutionChain
+              node={detail.evolution}
+              shiny={shiny}
+              spriteStyle={spriteStyle}
+              currentId={pokemon.id}
+            />
           ) : detailError ? (
             <p className="panel__note">Evolution data unavailable.</p>
           ) : (

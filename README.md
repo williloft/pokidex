@@ -63,6 +63,21 @@ from the dex number, which keeps the index small.
 - Every filter lives in the URL, so any view is shareable and the back button works
 - `/` focuses search; arrow keys walk between entries on a detail page
 
+**Forms**
+
+Megas, Gigantamax and regional variants are separate Pokémon in the API, with
+their own typing and stats. Rather than letting them crowd the grid and break
+the dex numbering, each species keeps one card and its forms become swatches on
+it — the way a shop shows one shirt in three colours. The swatch is split by the
+form's own types, so a typing change is visible before you click.
+
+- Cards show a swatch per form; picking one swaps the art, types and BST in place
+- Detail pages carry the choice in the URL (`?form=charizard-mega-x`) and
+  recompute stats, abilities and matchups for that form
+- Filtering by type searches forms too: filter by Dragon and Charizard appears
+  wearing its Mega X art, because that is the variant that matched
+- Evolution chains deliberately stay species-level — a Mega is not an evolution
+
 **Detail page**
 
 - Base stats, abilities, physical data, flavour text
@@ -70,6 +85,8 @@ from the dex number, which keeps the index small.
 - Evolution chain rendered as a tree, so branching families display correctly
 - Cry playback
 - Shiny toggle that the whole app respects (the original's hardcoded shiny sprites, made a switch)
+- Sprite style switcher: HOME renders or animated sprites, with a fallback chain
+  so patchy coverage degrades to a different render instead of a hole
 
 **Team builder**
 

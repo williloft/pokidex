@@ -1,12 +1,14 @@
 import { Link } from 'react-router-dom'
 import { useDex } from '../App'
+import { Sprite } from '../components/Sprite'
 import { StatBars } from '../components/StatBars'
 import { TypeBadge } from '../components/TypeBadge'
 import { WeaknessHeatmap } from '../components/WeaknessHeatmap'
+import { dexHref } from '../lib/dexLocation'
 import { displayName } from '../lib/pokedex'
-import { artwork } from '../lib/sprites'
-import { statTotal, type Pokemon, type Stats, type StatName } from '../lib/types'
-import { STAT_ORDER } from '../lib/types'
+import { useSpriteStyle } from '../lib/usePrefs'
+import { STAT_ORDER, statTotal, type Pokemon, type StatName, type Stats } from '../lib/types'
+import { useDocumentTitle } from '../lib/useScrollRestoration'
 
 interface Props {
   team: Pokemon[]
@@ -28,13 +30,15 @@ function averageStats(team: Pokemon[]): Stats {
 
 export function TeamPage({ team, shiny, onRemove }: Props) {
   const { typeData } = useDex()
+  const [spriteStyle] = useSpriteStyle()
+  useDocumentTitle(team.length > 0 ? `Team (${team.length}) · Pokédex` : 'Team · Pokédex')
 
   if (team.length === 0) {
     return (
       <div className="notice">
         <h1>No team yet</h1>
         <p>Add up to six Pokémon from the dex and this page will show you what beats them.</p>
-        <Link className="button" to="/">
+        <Link className="button" to={dexHref()}>
           Browse the dex
         </Link>
       </div>
@@ -47,29 +51,30 @@ export function TeamPage({ team, shiny, onRemove }: Props) {
     (best, key) => (averages[key] > averages[best] ? key : best),
     'hp',
   )
+  const averageBst = Math.round(
+    team.reduce((sum, member) => sum + statTotal(member.stats), 0) / team.length,
+  )
 
   return (
     <div className="team-page">
       <header className="team-page__header">
         <h1>Your team</h1>
         <p className="team-page__summary">
-          {team.length} of 6 · {typeSpread.size} {typeSpread.size === 1 ? 'type' : 'types'} covered
-          ·{' '}
-          {Math.round(team.reduce((sum, member) => sum + statTotal(member.stats), 0) / team.length)}{' '}
-          average BST
+          {team.length} of 6 · {typeSpread.size} {typeSpread.size === 1 ? 'type' : 'types'} covered ·{' '}
+          {averageBst} average BST
         </p>
       </header>
 
       <ul className="team-page__roster">
         {team.map((member) => (
           <li key={member.id}>
-            <Link to={`/pokemon/${member.name}`}>
-              <img
-                src={artwork(member.id, shiny)}
+            <Link to={`/pokemon/${member.name}`} viewTransition>
+              <Sprite
+                id={member.id}
                 alt={displayName(member.name)}
-                width={96}
-                height={96}
-                loading="lazy"
+                shiny={shiny}
+                style={spriteStyle}
+                size={96}
               />
               <span className="team-page__name">{displayName(member.name)}</span>
             </Link>

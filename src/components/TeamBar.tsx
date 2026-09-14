@@ -33,6 +33,11 @@ export function TeamBar({ team, shiny, onRemove, onClear }: Props) {
                   alt={displayName(member.name)}
                   width={48}
                   height={36}
+                  loading="lazy"
+                  onError={(event) => {
+                    // A missing shiny icon shouldn't leave an empty slot.
+                    event.currentTarget.src = pixelSprite(member.id, false)
+                  }}
                 />
               </button>
             </li>
@@ -43,7 +48,7 @@ export function TeamBar({ team, shiny, onRemove, onClear }: Props) {
         </ul>
 
         <div className="teambar__actions">
-          <Link className="button" to="/team">
+          <Link className="button" to="/team" viewTransition>
             Analyse team
           </Link>
           <button type="button" className="chip chip--ghost" onClick={onClear}>

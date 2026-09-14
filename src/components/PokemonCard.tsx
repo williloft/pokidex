@@ -1,65 +1,115 @@
-import { memo } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { prefetchDetail } from '../lib/api'
-import { dexNumber, displayName } from '../lib/pokedex'
-import { artwork } from '../lib/sprites'
-import { statTotal, type Pokemon } from '../lib/types'
+import { dexNumber, displayName, type DexEntry } from '../lib/pokedex'
+import type { SpriteStyle } from '../lib/sprites'
+import { formViews, statTotal } from '../lib/types'
+import { FormSwatches } from './FormSwatches'
+import { Sprite } from './Sprite'
 import { TypeBadge } from './TypeBadge'
 
 interface Props {
-  pokemon: Pokemon
+  entry: DexEntry
   shiny: boolean
+  spriteStyle: SpriteStyle
   inTeam: boolean
   teamFull: boolean
   onToggleTeam: (id: number) => void
 }
 
+/** Sweeping the mouse over the grid shouldn't fire a request per card. */
+const PREFETCH_DELAY = 150
+
 export const PokemonCard = memo(function PokemonCard({
-  pokemon,
+  entry,
   shiny,
+  spriteStyle,
   inTeam,
   teamFull,
   onToggleTeam,
 }: Props) {
-  const primary = pokemon.types[0] ?? 'normal'
-  const secondary = pokemon.types[1] ?? primary
+  const { pokemon } = entry
+  const views = formViews(pokemon)
+  const [selected, setSelected] = useState(entry.formName ?? pokemon.name)
+  const [navigating, setNavigating] = useState(false)
+  const prefetchTimer = useRef<number | undefined>(undefined)
+
+  // A new filter can pick a different form for this card; follow it.
+  useEffect(() => {
+    setSelected(entry.formName ?? pokemon.name)
+  }, [entry.formName, pokemon.name])
+
+  useEffect(() => () => window.clearTimeout(prefetchTimer.current), [])
+
+  const view = views.find((item) => item.name === selected) ?? views[0]!
+  const primary = view.types[0] ?? 'normal'
+  const secondary = view.types[1] ?? null
   const disabled = teamFull && !inTeam
+  const href =
+    view.category === 'default'
+      ? `/pokemon/${pokemon.name}`
+      : `/pokemon/${pokemon.name}?form=${view.name}`
+
+  const startPrefetch = () => {
+    window.clearTimeout(prefetchTimer.current)
+    prefetchTimer.current = window.setTimeout(() => prefetchDetail(pokemon.id), PREFETCH_DELAY)
+  }
+  const cancelPrefetch = () => window.clearTimeout(prefetchTimer.current)
 
   return (
     <article
-      className="card"
+      className={`card ${secondary ? 'card--dual' : ''}`}
       style={
         {
           '--card-primary': `var(--type-${primary})`,
-          '--card-secondary': `var(--type-${secondary})`,
+          '--card-secondary': `var(--type-${secondary ?? primary})`,
         } as React.CSSProperties
       }
     >
       <Link
         className="card__link"
-        to={`/pokemon/${pokemon.name}`}
-        onPointerEnter={() => prefetchDetail(pokemon.id)}
-        onFocus={() => prefetchDetail(pokemon.id)}
+        to={href}
+        viewTransition
+        onPointerEnter={startPrefetch}
+        onPointerLeave={cancelPrefetch}
+        onFocus={startPrefetch}
+        onBlur={cancelPrefetch}
+        onClick={() => setNavigating(true)}
       >
         <span className="card__number">{dexNumber(pokemon.id)}</span>
-        <img
+
+        <Sprite
+          id={view.id}
+          alt={displayName(view.name)}
+          shiny={shiny}
+          style={spriteStyle}
+          size={240}
           className="card__art"
-          src={artwork(pokemon.id, shiny)}
-          alt={displayName(pokemon.name)}
-          loading="lazy"
-          decoding="async"
-          width={240}
-          height={240}
-          style={{ viewTransitionName: `art-${pokemon.id}` }}
+          transitionName={navigating ? `art-${view.id}` : undefined}
         />
-        <h2 className="card__name">{displayName(pokemon.name)}</h2>
+
+        <h2 className="card__name">
+          {displayName(pokemon.name)}
+          {view.category !== 'default' ? (
+            <span className="card__form">{view.label}</span>
+          ) : null}
+        </h2>
+
         <div className="card__types">
-          {pokemon.types.map((type) => (
+          {view.types.map((type) => (
             <TypeBadge key={type} type={type} />
           ))}
         </div>
-        <span className="card__total">{statTotal(pokemon.stats)} BST</span>
+
+        <span className="card__total">{statTotal(view.stats)} BST</span>
       </Link>
+
+      <FormSwatches
+        views={views}
+        selected={selected}
+        onSelect={setSelected}
+        name={displayName(pokemon.name)}
+      />
 
       <button
         type="button"
@@ -76,9 +126,7 @@ export const PokemonCard = memo(function PokemonCard({
         }
       >
         {inTeam ? '−' : '+'}
-        <span className="visually-hidden">
-          {inTeam ? 'Remove from team' : 'Add to team'}
-        </span>
+        <span className="visually-hidden">{inTeam ? 'Remove from team' : 'Add to team'}</span>
       </button>
     </article>
   )

@@ -1,25 +1,31 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useDex } from '../App'
 import { FilterBar } from '../components/FilterBar'
 import { PokemonGrid } from '../components/PokemonGrid'
+import { rememberSearch } from '../lib/dexLocation'
 import { filterAndSort } from '../lib/pokedex'
+import type { SpriteStyle } from '../lib/sprites'
 import { useFilters } from '../lib/useFilters'
 
 interface Props {
   shiny: boolean
+  spriteStyle: SpriteStyle
   inTeam: (id: number) => boolean
   teamFull: boolean
   onToggleTeam: (id: number) => void
 }
 
-export function IndexPage({ shiny, inTeam, teamFull, onToggleTeam }: Props) {
+export function IndexPage({ shiny, spriteStyle, inTeam, teamFull, onToggleTeam }: Props) {
   const { pokedex, typeData } = useDex()
   const [filters, update, reset] = useFilters()
+  const location = useLocation()
 
-  const results = useMemo(
-    () => filterAndSort(pokedex.pokemon, filters),
-    [pokedex.pokemon, filters],
-  )
+  // So a type link on a detail page can return you to these filters rather than
+  // to a bare, freshly-reset dex.
+  useEffect(() => rememberSearch(location.search), [location.search])
+
+  const results = useMemo(() => filterAndSort(pokedex.pokemon, filters), [pokedex.pokemon, filters])
 
   return (
     <>
@@ -34,8 +40,9 @@ export function IndexPage({ shiny, inTeam, teamFull, onToggleTeam }: Props) {
       />
 
       <PokemonGrid
-        pokemon={results}
+        entries={results}
         shiny={shiny}
+        spriteStyle={spriteStyle}
         inTeam={inTeam}
         teamFull={teamFull}
         onToggleTeam={onToggleTeam}

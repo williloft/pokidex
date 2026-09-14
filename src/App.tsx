@@ -2,9 +2,11 @@ import { createContext, useContext, useMemo } from 'react'
 import { Link, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { TeamBar } from './components/TeamBar'
 import { useDataset, type Dataset } from './lib/dataset'
-import { useShiny } from './lib/useShiny'
-import { useTeam } from './lib/useTeam'
+import { SPRITE_STYLES } from './lib/sprites'
 import type { Pokemon } from './lib/types'
+import { useShiny, useSpriteStyle } from './lib/usePrefs'
+import { useScrollRestoration } from './lib/useScrollRestoration'
+import { useTeam } from './lib/useTeam'
 import { DetailPage } from './routes/DetailPage'
 import { IndexPage } from './routes/IndexPage'
 import { TeamPage } from './routes/TeamPage'
@@ -20,10 +22,12 @@ export function useDex(): Dataset {
 export default function App() {
   const state = useDataset()
   const [shiny, toggleShiny] = useShiny()
+  const [spriteStyle, setSpriteStyle] = useSpriteStyle()
   const { team, has, isFull, toggle, remove, clear } = useTeam()
   const location = useLocation()
 
   const dataset = state.status === 'ready' ? state.data : null
+  useScrollRestoration(dataset !== null)
 
   const teamMembers = useMemo<Pokemon[]>(() => {
     if (!dataset) return []
@@ -32,8 +36,10 @@ export default function App() {
       .filter((entry): entry is Pokemon => entry !== undefined)
   }, [dataset, team])
 
+  const showTeamBar = location.pathname !== '/team' && teamMembers.length > 0
+
   return (
-    <div className="app" data-shiny={shiny}>
+    <div className="app" data-teambar={showTeamBar}>
       <header className="topbar">
         <Link className="topbar__brand" to="/">
           <span className="topbar__dot" aria-hidden="true" />
@@ -41,23 +47,42 @@ export default function App() {
         </Link>
 
         <nav className="topbar__nav">
-          <NavLink to="/" end>
+          <NavLink to="/" end viewTransition>
             Browse
           </NavLink>
-          <NavLink to="/team">
+          <NavLink to="/team" viewTransition>
             Team
             {team.length > 0 ? <span className="topbar__badge">{team.length}</span> : null}
           </NavLink>
         </nav>
 
-        <button
-          type="button"
-          className={`shiny-toggle ${shiny ? 'shiny-toggle--on' : ''}`}
-          onClick={toggleShiny}
-          aria-pressed={shiny}
-        >
-          <span aria-hidden="true">✦</span> Shiny
-        </button>
+        <div className="topbar__prefs">
+          <label className="sprite-style">
+            <span className="visually-hidden">Sprite style</span>
+            <select
+              value={spriteStyle}
+              onChange={(event) =>
+                setSpriteStyle(event.target.value as (typeof SPRITE_STYLES)[number]['value'])
+              }
+              title={SPRITE_STYLES.find((style) => style.value === spriteStyle)?.hint}
+            >
+              {SPRITE_STYLES.map((style) => (
+                <option key={style.value} value={style.value}>
+                  {style.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <button
+            type="button"
+            className={`shiny-toggle ${shiny ? 'shiny-toggle--on' : ''}`}
+            onClick={toggleShiny}
+            aria-pressed={shiny}
+          >
+            <span aria-hidden="true">✦</span> Shiny
+          </button>
+        </div>
       </header>
 
       <main className="main">
@@ -75,6 +100,7 @@ export default function App() {
                 element={
                   <IndexPage
                     shiny={shiny}
+                    spriteStyle={spriteStyle}
                     inTeam={has}
                     teamFull={isFull}
                     onToggleTeam={toggle}
@@ -86,6 +112,7 @@ export default function App() {
                 element={
                   <DetailPage
                     shiny={shiny}
+                    spriteStyle={spriteStyle}
                     inTeam={has}
                     teamFull={isFull}
                     onToggleTeam={toggle}
@@ -112,7 +139,7 @@ export default function App() {
         )}
       </main>
 
-      {location.pathname !== '/team' ? (
+      {showTeamBar ? (
         <TeamBar team={teamMembers} shiny={shiny} onRemove={remove} onClear={clear} />
       ) : null}
     </div>
