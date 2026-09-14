@@ -71,3 +71,52 @@ export const useQuizScore = createPreference<QuizScore>(
   },
   (value) => JSON.stringify(value),
 )
+
+export type QuizMode = 'easy' | 'hard'
+
+export const useQuizMode = createPreference<QuizMode>(
+  'pokedex:quiz-mode',
+  'easy',
+  (raw) => (raw === 'easy' || raw === 'hard' ? raw : null),
+  (value) => value,
+)
+
+/**
+ * The four buttons in easy mode.
+ *
+ * Decoys are drawn from the target's own generation where possible: three
+ * Pokémon from wildly different eras would make the answer obvious to anyone
+ * who knows roughly when a design is from.
+ */
+export function pickChoices(
+  pokemon: readonly Pokemon[],
+  target: Pokemon,
+  count = 4,
+  roll: () => number = Math.random,
+): Pokemon[] {
+  const sameGeneration = pokemon.filter(
+    (entry) => entry.id !== target.id && entry.generation === target.generation,
+  )
+  const fallback = pokemon.filter((entry) => entry.id !== target.id)
+  const pool = sameGeneration.length >= count - 1 ? sameGeneration : fallback
+
+  const decoys: Pokemon[] = []
+  const seen = new Set<number>([target.id])
+
+  for (let attempt = 0; attempt < pool.length * 4 && decoys.length < count - 1; attempt++) {
+    const candidate = pool[Math.floor(roll() * pool.length)]
+    if (!candidate || seen.has(candidate.id)) continue
+    seen.add(candidate.id)
+    decoys.push(candidate)
+  }
+
+  const choices = [target, ...decoys]
+
+  // Fisher-Yates, so the answer is not always in the same slot.
+  for (let index = choices.length - 1; index > 0; index--) {
+    const swap = Math.floor(roll() * (index + 1))
+    ;[choices[index], choices[swap]] = [choices[swap]!, choices[index]!]
+  }
+
+  return choices
+}

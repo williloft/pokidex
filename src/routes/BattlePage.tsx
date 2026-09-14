@@ -1,14 +1,13 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useDex } from '../App'
-import { PokemonSearchField } from '../components/PokemonSearchField'
 import { Sprite } from '../components/Sprite'
 import { TypeBadge } from '../components/TypeBadge'
+import { isDown, makeBattler, type Difficulty } from '../lib/battle'
+import { sendIn, startBattle, takeTurn, type BattleState } from '../lib/battleState'
 import { dexHref } from '../lib/dexLocation'
-import { displayName } from '../lib/pokedex'
-import { analyseMatchup, bestLead, VERDICT_LABEL } from '../lib/matchup'
-import { formatMultiplier } from '../lib/typeChart'
-import { resolveForm, type FormView, type Pokemon, type TeamMember } from '../lib/types'
+import { buildTrainer, pickBlueprint, TRAINERS, type TrainerBlueprint } from '../lib/trainers'
+import type { TeamMember } from '../lib/types'
 import { useDocumentTitle } from '../lib/useScrollRestoration'
 
 interface Props {
@@ -16,27 +15,35 @@ interface Props {
   shiny: boolean
 }
 
-interface Opponent {
-  pokemon: Pokemon
-  view: FormView
+const DIFFICULTIES: Array<{ value: Difficulty; label: string; hint: string }> = [
+  { value: 'easy', label: 'Easy', hint: 'Weaker roster, never switches' },
+  { value: 'normal', label: 'Normal', hint: 'Retreats when it is being walled' },
+  { value: 'hard', label: 'Hard', hint: 'Strong roster, answers your pick' },
+]
+
+function HealthBar({ battler }: { battler: { hp: number; maxHp: number } }) {
+  const share = Math.max(0, battler.hp / battler.maxHp)
+  const tone = share > 0.5 ? 'good' : share > 0.2 ? 'warn' : 'low'
+  return (
+    <div className="hpbar" role="meter" aria-valuenow={battler.hp} aria-valuemax={battler.maxHp}>
+      <div className={`hpbar__fill hpbar__fill--${tone}`} style={{ width: `${share * 100}%` }} />
+    </div>
+  )
 }
 
 export function BattlePage({ team, shiny }: Props) {
   const { pokedex, typeData } = useDex()
-  const [opponent, setOpponent] = useState<Opponent | null>(null)
   useDocumentTitle('Battle · Pokédex')
 
-  const matchups = useMemo(
-    () => (opponent ? analyseMatchup(typeData.chart, team, opponent.view.types) : []),
-    [typeData.chart, team, opponent],
-  )
-  const lead = useMemo(() => bestLead(matchups), [matchups])
+  const [difficulty, setDifficulty] = useState<Difficulty>('normal')
+  const [blueprint, setBlueprint] = useState<TrainerBlueprint>(() => pickBlueprint())
+  const [battle, setBattle] = useState<BattleState | null>(null)
 
   if (team.length === 0) {
     return (
       <div className="notice">
         <h1>No team yet</h1>
-        <p>Build a team first, then bring an opponent here to see who handles it.</p>
+        <p>Build a team first — you cannot take on a trainer without one.</p>
         <Link className="button" to={dexHref()}>
           Browse the dex
         </Link>
@@ -44,100 +51,196 @@ export function BattlePage({ team, shiny }: Props) {
     )
   }
 
+  const begin = () => {
+    const trainer = buildTrainer(blueprint, pokedex.pokemon, difficulty)
+    const party = team.map((member, index) =>
+      makeBattler(member.pokemon, member.view, `you-${member.pokemon.id}-${index}`),
+    )
+    setBattle(startBattle(party, trainer))
+  }
+
+  const act = (action: { kind: 'attack' } | { kind: 'switch'; index: number }) => {
+    setBattle((current) =>
+      current ? takeTurn(current, action, { chart: typeData.chart, difficulty }) : current,
+    )
+  }
+
+  if (!battle) {
+    return (
+      <div className="battle">
+        <header className="team-page__header">
+          <h1>Battle</h1>
+          <p className="team-page__summary">
+            Take your six against a trainer. No moves in the data, so everyone swings with their own
+            type — the decision that matters is who you send in.
+          </p>
+        </header>
+
+        <section className="panel">
+          <h2>Difficulty</h2>
+          <div className="chips">
+            {DIFFICULTIES.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                className={`chip ${difficulty === option.value ? 'chip--on' : ''}`}
+                aria-pressed={difficulty === option.value}
+                title={option.hint}
+                onClick={() => setDifficulty(option.value)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+
+          <h2 className="battle__subhead">Opponent</h2>
+          <ul className="trainer-list">
+            {TRAINERS.map((option) => (
+              <li key={option.id}>
+                <button
+                  type="button"
+                  className={`trainer ${blueprint.id === option.id ? 'trainer--on' : ''}`}
+                  onClick={() => setBlueprint(option)}
+                  style={
+                    {
+                      '--trainer-accent': `var(--type-${option.theme ?? 'normal'})`,
+                    } as React.CSSProperties
+                  }
+                >
+                  <span className="trainer__name">
+                    {option.title} {option.name}
+                  </span>
+                  <span className="trainer__theme">
+                    {option.theme ? <TypeBadge type={option.theme} /> : 'Mixed team'}
+                  </span>
+                  <span className="trainer__blurb">{option.blurb}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          <div className="detail__actions">
+            <button type="button" className="button" onClick={begin}>
+              Battle {blueprint.title} {blueprint.name}
+            </button>
+            <button type="button" className="chip" onClick={() => setBlueprint(pickBlueprint())}>
+              Surprise me
+            </button>
+          </div>
+        </section>
+      </div>
+    )
+  }
+
+  const you = battle.player[battle.playerActive]!
+  const foe = battle.foe[battle.foeActive]!
+
   return (
     <div className="battle">
       <header className="team-page__header">
-        <h1>Battle</h1>
+        <h1>
+          vs {battle.trainer.blueprint.title} {battle.trainer.blueprint.name}
+        </h1>
         <p className="team-page__summary">
-          Pick an opponent and see which of your six wants the fight.
+          Turn {battle.turn} · {DIFFICULTIES.find((d) => d.value === difficulty)?.label}
         </p>
       </header>
 
-      <section className="panel">
-        <h2>Opponent</h2>
-        <PokemonSearchField
-          pokemon={pokedex.pokemon}
-          placeholder="Search for the Pokémon you are facing…"
-          label="Choose an opponent"
-          onPick={(pokemon, formName) =>
-            setOpponent({ pokemon, view: resolveForm(pokemon, formName) })
-          }
-        />
-
-        {opponent ? (
-          <div className="battle__opponent">
-            <Sprite id={opponent.view.id} alt={opponent.view.title} shiny={shiny} size={120} />
-            <div>
-              <h3>{opponent.view.title}</h3>
-              <div className="detail__types">
-                {opponent.view.types.map((type) => (
-                  <TypeBadge key={type} type={type} size="md" />
-                ))}
-              </div>
+      <section className="arena">
+        <div className="arena__side arena__side--foe">
+          <div className="arena__info">
+            <h2>{foe.view.title}</h2>
+            <div className="detail__types">
+              {foe.view.types.map((type) => (
+                <TypeBadge key={type} type={type} />
+              ))}
             </div>
+            <HealthBar battler={foe} />
+            <p className="arena__hp">
+              {foe.hp} / {foe.maxHp}
+            </p>
+            <p className="arena__party">
+              {battle.foe.filter((member) => !isDown(member)).length} left
+            </p>
           </div>
-        ) : null}
+          <Sprite id={foe.view.id} alt={foe.view.title} shiny={shiny} size={180} />
+        </div>
+
+        <div className="arena__side">
+          <Sprite id={you.view.id} alt={you.view.title} shiny={shiny} size={200} />
+          <div className="arena__info">
+            <h2>{you.view.title}</h2>
+            <div className="detail__types">
+              {you.view.types.map((type) => (
+                <TypeBadge key={type} type={type} />
+              ))}
+            </div>
+            <HealthBar battler={you} />
+            <p className="arena__hp">
+              {you.hp} / {you.maxHp}
+            </p>
+          </div>
+        </div>
       </section>
 
-      {opponent ? (
-        <>
-          {lead ? (
-            <p className="team-notice" role="status">
-              <strong>Send in {lead.member.view.title}.</strong> {VERDICT_LABEL[lead.verdict]} —
-              hits for {formatMultiplier(lead.outgoing)}× and takes {formatMultiplier(lead.incoming)}
-              × back.
-            </p>
-          ) : null}
+      <section className="panel">
+        {battle.phase === 'over' ? (
+          <>
+            <h2>{battle.winner === 'player' ? 'You win' : 'You lost'}</h2>
+            <div className="detail__actions">
+              <button type="button" className="button" onClick={begin}>
+                Rematch
+              </button>
+              <button type="button" className="chip" onClick={() => setBattle(null)}>
+                Pick another trainer
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <h2>{battle.phase === 'must-switch' ? 'Send in your next' : 'Your move'}</h2>
+            {battle.phase === 'choosing' ? (
+              <button type="button" className="button" onClick={() => act({ kind: 'attack' })}>
+                Attack
+              </button>
+            ) : null}
 
-          <section className="panel">
-            <h2>Your team against {opponent.view.title}</h2>
-            <p className="panel__note">
-              Worked out from typing alone — neither side&rsquo;s actual moves, abilities or items
-              are in the data, so treat this as the shape of the matchup rather than a prediction.
-            </p>
-
-            <ul className="matchup-list">
-              {matchups.map((matchup) => (
-                <li
-                  key={matchup.member.pokemon.id}
-                  className={`matchup matchup--${matchup.verdict}`}
-                >
-                  <Link
-                    className="matchup__who"
-                    to={`/pokemon/${matchup.member.pokemon.name}`}
-                    viewTransition
-                  >
-                    <Sprite
-                      id={matchup.member.view.id}
-                      alt={matchup.member.view.title}
-                      shiny={shiny}
-                      size={64}
-                    />
-                    <span>{matchup.member.view.title}</span>
-                  </Link>
-
-                  <span className="matchup__verdict">{VERDICT_LABEL[matchup.verdict]}</span>
-
-                  <dl className="matchup__numbers">
-                    <div>
-                      <dt>Deals</dt>
-                      <dd>{formatMultiplier(matchup.outgoing)}×</dd>
-                    </div>
-                    <div>
-                      <dt>Takes</dt>
-                      <dd>{formatMultiplier(matchup.incoming)}×</dd>
-                    </div>
-                  </dl>
-                </li>
-              ))}
+            <ul className="bench">
+              {battle.player.map((member, index) => {
+                const down = isDown(member)
+                const current = index === battle.playerActive
+                return (
+                  <li key={member.key}>
+                    <button
+                      type="button"
+                      className={`bench__slot ${current ? 'bench__slot--active' : ''} ${down ? 'bench__slot--down' : ''}`}
+                      disabled={down || current}
+                      onClick={() =>
+                        battle.phase === 'must-switch'
+                          ? setBattle(sendIn(battle, index))
+                          : act({ kind: 'switch', index })
+                      }
+                    >
+                      <Sprite id={member.view.id} alt={member.view.title} shiny={shiny} size={48} />
+                      <span className="bench__name">{member.view.title}</span>
+                      <HealthBar battler={member} />
+                    </button>
+                  </li>
+                )
+              })}
             </ul>
-          </section>
-        </>
-      ) : (
-        <p className="panel__note">
-          Nothing picked yet. Your team: {team.map((member) => displayName(member.pokemon.name)).join(', ')}.
-        </p>
-      )}
+          </>
+        )}
+      </section>
+
+      <section className="panel">
+        <h2>Log</h2>
+        <ol className="battle-log">
+          {battle.log.map((line, index) => (
+            <li key={`${battle.turn}-${index}-${line}`}>{line}</li>
+          ))}
+        </ol>
+      </section>
     </div>
   )
 }

@@ -313,6 +313,7 @@ a {
 
 .type-badge {
   display: inline-flex;
+  flex: none;
   align-items: center;
   gap: 5px;
   border-radius: 999px;
@@ -1317,8 +1318,58 @@ a {
     margin-inline-start: 0;
   }
 
+  /*
+   * Four destinations plus the brand and the shiny toggle stopped fitting on a
+   * phone once Battle and Quiz arrived. Rather than hiding links behind a menu,
+   * the bar wraps: identity and preferences keep the top row, the nav gets a
+   * full row of its own underneath and scrolls sideways if it still runs long.
+   */
   .topbar {
-    gap: 12px;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    padding-bottom: 8px;
+  }
+
+  .topbar__nav {
+    order: 3;
+    flex-basis: 100%;
+    margin-inline-start: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .topbar__nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .topbar__nav a {
+    flex: none;
+    padding: 6px 10px;
+  }
+
+  .topbar__prefs {
+    margin-inline-start: auto;
+  }
+
+  /* Six slots plus two buttons never fit on one phone-width row. */
+  .app[data-teambar='true'] {
+    padding-bottom: 148px;
+  }
+
+  .teambar__inner {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .teambar__slots {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+
+  .teambar__actions {
+    flex: 1 1 100%;
+    justify-content: center;
+    margin-inline-start: 0;
   }
 }
 
@@ -1791,6 +1842,7 @@ a {
 
 .quiz__header {
   margin-bottom: 18px;
+  text-align: center;
 }
 
 .quiz__score {
@@ -1805,25 +1857,26 @@ a {
 
 .quiz__stage {
   display: grid;
-  grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
-  gap: 32px;
-  align-items: center;
-  margin-top: 20px;
-  padding: 28px;
+  justify-items: center;
+  gap: 24px;
+  max-width: 640px;
+  margin: 20px auto 0;
+  padding: 32px 28px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-raised);
+  text-align: center;
 }
 
 .quiz__art {
   display: grid;
   place-items: center;
-  min-height: 320px;
+  width: 100%;
+  min-height: 380px;
 }
 
 .quiz__art .sprite {
-  width: 100%;
-  max-width: 300px;
+  width: min(420px, 70vw);
   height: auto;
   object-fit: contain;
 }
@@ -1841,10 +1894,55 @@ a {
   filter: drop-shadow(0 12px 28px rgb(0 0 0 / 0.4));
 }
 
-.quiz__panel {
+.quiz__reveal,
+.quiz__answer {
   display: grid;
-  justify-items: start;
+  justify-items: center;
   gap: 12px;
+  width: 100%;
+}
+
+.quiz__types {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.quiz__settings {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.quiz__choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.quiz__choice {
+  width: 100%;
+  padding: 14px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  color: var(--text);
+  font: inherit;
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+
+.quiz__choice:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-sunken));
 }
 
 .quiz__verdict {
@@ -1884,5 +1982,242 @@ a {
   .matchup {
     grid-template-columns: 1fr;
     gap: 10px;
+  }
+}
+
+
+/* ---------------------------------------------------------------------------
+   Trainer battles
+   --------------------------------------------------------------------------- */
+
+.battle__subhead {
+  margin-top: 22px;
+}
+
+.trainer-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 10px;
+  margin: 14px 0 20px;
+  padding: 0;
+  list-style: none;
+}
+
+.trainer {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-inline-start: 4px solid var(--trainer-accent);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.trainer--on {
+  border-color: var(--accent);
+  border-inline-start-color: var(--trainer-accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-sunken));
+}
+
+.trainer__name {
+  font-family: var(--font-display);
+  font-weight: 650;
+}
+
+.trainer__theme {
+  display: flex;
+  color: var(--text-dim);
+  font-size: 0.78rem;
+}
+
+.trainer__blurb {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.arena {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+
+/*
+ * The foe sits top-right and you sit bottom-left, the way a battle screen has
+ * always read. Each side packs against its own edge instead of stretching, so
+ * the health bar stays a health bar rather than a rule across the whole page.
+ */
+.arena__side {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 20px;
+}
+
+.arena__side--foe {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+
+.arena__side--foe .detail__types {
+  justify-content: flex-end;
+}
+
+.arena__side .sprite {
+  width: 170px;
+  height: 170px;
+  object-fit: contain;
+}
+
+.arena__info {
+  flex: 0 1 320px;
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.arena__hp,
+.arena__party {
+  margin: 0;
+  color: var(--text-dim);
+  font-family: var(--font-display);
+  font-size: 0.82rem;
+}
+
+.hpbar {
+  height: 10px;
+  border-radius: 999px;
+  background: var(--bg-sunken);
+  overflow: hidden;
+}
+
+.hpbar__fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.hpbar__fill--good {
+  background: var(--type-grass);
+}
+
+.hpbar__fill--warn {
+  background: var(--type-electric);
+}
+
+.hpbar__fill--low {
+  background: var(--type-fire);
+}
+
+.bench {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bench__slot {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.bench__slot .sprite {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
+.bench__slot .hpbar {
+  width: 100%;
+}
+
+.bench__slot--active {
+  border-color: var(--accent);
+}
+
+.bench__slot--down {
+  opacity: 0.4;
+}
+
+.bench__slot:disabled {
+  cursor: not-allowed;
+}
+
+.bench__name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.battle-log {
+  display: grid;
+  gap: 4px;
+  margin: 14px 0 0;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  list-style: none;
+  color: var(--text-dim);
+  font-size: 0.86rem;
+}
+
+.battle-log li:first-child {
+  color: var(--text);
+}
+
+@media (max-width: 760px) {
+  .arena__side,
+  .arena__side--foe {
+    flex-direction: column;
+    gap: 10px;
+    text-align: center;
+  }
+
+  /*
+   * Stacked, the sides run down the page — so the info block's flex-basis
+   * would become a height and stretch the panel with empty space. It wants to
+   * be its natural height and a bounded width instead.
+   */
+  .arena__info {
+    flex: none;
+    width: min(100%, 320px);
+    justify-items: center;
+  }
+
+  .arena__side .sprite {
+    width: 130px;
+    height: 130px;
+  }
+
+  .arena__side--foe .detail__types {
+    justify-content: center;
+  }
+
+  .arena__info .hpbar {
+    width: min(100%, 260px);
+  }
+
+  .quiz__choices {
+    grid-template-columns: 1fr;
   }
 }
