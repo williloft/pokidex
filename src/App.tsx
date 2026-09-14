@@ -7,8 +7,10 @@ import { resolveForm, type TeamMember } from './lib/types'
 import { useShiny } from './lib/usePrefs'
 import { useScrollRestoration } from './lib/useScrollRestoration'
 import { useTeam } from './lib/useTeam'
+import { BattlePage } from './routes/BattlePage'
 import { DetailPage } from './routes/DetailPage'
 import { IndexPage } from './routes/IndexPage'
+import { QuizPage } from './routes/QuizPage'
 import { TeamPage } from './routes/TeamPage'
 
 const DatasetContext = createContext<Dataset | null>(null)
@@ -38,7 +40,8 @@ export default function App() {
       .filter((member): member is TeamMember => member !== null)
   }, [dataset, team])
 
-  const showTeamBar = location.pathname !== '/team' && teamMembers.length > 0
+  const chromeless = ['/team', '/quiz'].includes(location.pathname)
+  const showTeamBar = !chromeless && teamMembers.length > 0
 
   return (
     <div className="app" data-teambar={showTeamBar}>
@@ -55,6 +58,12 @@ export default function App() {
           <NavLink to="/team" viewTransition>
             Team
             {team.length > 0 ? <span className="topbar__badge">{team.length}</span> : null}
+          </NavLink>
+          <NavLink to="/battle" viewTransition>
+            Battle
+          </NavLink>
+          <NavLink to="/quiz" viewTransition>
+            Quiz
           </NavLink>
         </nav>
 
@@ -115,6 +124,11 @@ export default function App() {
                   />
                 }
               />
+              <Route
+                path="/battle"
+                element={<BattlePage team={teamMembers} shiny={shiny} />}
+              />
+              <Route path="/quiz" element={<QuizPage shiny={shiny} />} />
               <Route
                 path="*"
                 element={
