@@ -9,7 +9,7 @@ import { TypeBadge } from '../components/TypeBadge'
 import { fetchDetail } from '../lib/api'
 import { dexHref } from '../lib/dexLocation'
 import { dexNumber, displayName } from '../lib/pokedex'
-import { crySrc, type SpriteStyle } from '../lib/sprites'
+import { crySrc } from '../lib/sprites'
 import { formViews, resolveForm, type PokemonDetail } from '../lib/types'
 import { defensiveProfile } from '../lib/typeChart'
 import { useDocumentTitle } from '../lib/useScrollRestoration'
@@ -17,13 +17,12 @@ import type { SlotState } from '../lib/useTeam'
 
 interface Props {
   shiny: boolean
-  spriteStyle: SpriteStyle
   slotState: (id: number, form: string | null) => SlotState
   teamFull: boolean
   onToggleTeam: (id: number, form: string | null) => void
 }
 
-export function DetailPage({ shiny, spriteStyle, slotState, teamFull, onToggleTeam }: Props) {
+export function DetailPage({ shiny, slotState, teamFull, onToggleTeam }: Props) {
   const { name = '' } = useParams()
   const [params, setParams] = useSearchParams()
   const navigate = useNavigate()
@@ -149,7 +148,6 @@ export function DetailPage({ shiny, spriteStyle, slotState, teamFull, onToggleTe
             id={view.id}
             alt={displayName(view.name)}
             shiny={shiny}
-            style={spriteStyle}
             size={360}
             priority
             transitionName={`art-${view.id}`}
@@ -296,8 +294,8 @@ export function DetailPage({ shiny, spriteStyle, slotState, teamFull, onToggleTe
             <EvolutionChain
               node={detail.evolution}
               shiny={shiny}
-              spriteStyle={spriteStyle}
               currentId={pokemon.id}
+              formsFor={(id) => byId.get(id)?.forms ?? []}
             />
           ) : detailError ? (
             <p className="panel__note">Evolution data unavailable.</p>

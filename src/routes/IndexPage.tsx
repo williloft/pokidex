@@ -5,19 +5,17 @@ import { FilterBar } from '../components/FilterBar'
 import { PokemonGrid } from '../components/PokemonGrid'
 import { rememberSearch } from '../lib/dexLocation'
 import { filterAndSort } from '../lib/pokedex'
-import type { SpriteStyle } from '../lib/sprites'
 import { useFilters } from '../lib/useFilters'
 import type { SlotState } from '../lib/useTeam'
 
 interface Props {
   shiny: boolean
-  spriteStyle: SpriteStyle
   slotState: (id: number, form: string | null) => SlotState
   teamFull: boolean
   onToggleTeam: (id: number, form: string | null) => void
 }
 
-export function IndexPage({ shiny, spriteStyle, slotState, teamFull, onToggleTeam }: Props) {
+export function IndexPage({ shiny, slotState, teamFull, onToggleTeam }: Props) {
   const { pokedex, typeData } = useDex()
   const [filters, update, reset] = useFilters()
   const location = useLocation()
@@ -43,7 +41,6 @@ export function IndexPage({ shiny, spriteStyle, slotState, teamFull, onToggleTea
       <PokemonGrid
         entries={results}
         shiny={shiny}
-        spriteStyle={spriteStyle}
         slotState={slotState}
         teamFull={teamFull}
         onToggleTeam={onToggleTeam}

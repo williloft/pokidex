@@ -2,7 +2,6 @@ import { memo, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { prefetchDetail } from '../lib/api'
 import { dexNumber, displayName, type DexEntry } from '../lib/pokedex'
-import type { SpriteStyle } from '../lib/sprites'
 import { formViews, statTotal } from '../lib/types'
 import type { SlotState } from '../lib/useTeam'
 import { FormSwatches } from './FormSwatches'
@@ -12,7 +11,6 @@ import { TypeBadge } from './TypeBadge'
 interface Props {
   entry: DexEntry
   shiny: boolean
-  spriteStyle: SpriteStyle
   /** Asked per form, because the card's selected variant is local state. */
   slotState: (id: number, form: string | null) => SlotState
   teamFull: boolean
@@ -25,7 +23,6 @@ const PREFETCH_DELAY = 150
 export const PokemonCard = memo(function PokemonCard({
   entry,
   shiny,
-  spriteStyle,
   slotState,
   teamFull,
   onToggleTeam,
@@ -86,7 +83,6 @@ export const PokemonCard = memo(function PokemonCard({
           id={view.id}
           alt={displayName(view.name)}
           shiny={shiny}
-          style={spriteStyle}
           size={240}
           className="card__art"
           transitionName={navigating ? `art-${view.id}` : undefined}

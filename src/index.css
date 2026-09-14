@@ -191,18 +191,6 @@ a {
   gap: 8px;
 }
 
-.sprite-style select {
-  padding: 6px 10px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--bg-raised);
-  color: var(--text-dim);
-  font: inherit;
-  font-size: 0.82rem;
-  font-weight: 550;
-  cursor: pointer;
-}
-
 .shiny-toggle {
   padding: 6px 12px;
   border: 1px solid var(--border);
@@ -644,15 +632,6 @@ a {
   opacity: 1;
 }
 
-/*
- * Animated sprites come from small, old source art of mixed vintages. Letting
- * the browser smooth them on the way up just looks soft next to the newer,
- * larger ones; crisp pixels read as an intentional style.
- */
-.sprite--pixelated {
-  image-rendering: pixelated;
-}
-
 .swatches {
   display: flex;
   flex-wrap: wrap;
@@ -975,6 +954,51 @@ a {
 .evo__stage--current {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+/*
+ * Megas, Gigantamax and regional variants hang off their stage rather than
+ * sitting in the chain as steps of their own — they are another shape for that
+ * Pokémon, not the next thing it becomes. The indent and the tinted rail say so.
+ */
+.evo__forms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0 0;
+  padding: 0 0 0 18px;
+  list-style: none;
+}
+
+.evo__form {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 4px;
+  border-radius: 999px;
+  background: var(--bg-sunken);
+  box-shadow: inset 2px 0 0 var(--form-primary);
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  font-weight: 650;
+  text-decoration: none;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+.evo__form:hover {
+  background: color-mix(in srgb, var(--form-primary) 16%, var(--bg-sunken));
+  color: var(--text);
+}
+
+.evo__form img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+}
+
+.evo__form-label {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .evo__stage img {

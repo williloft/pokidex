@@ -1,17 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import {
-  artwork,
-  artworkFallbacks,
-  DEFAULT_SPRITE_STYLE,
-  isPixelated,
-  type SpriteStyle,
-} from '../lib/sprites'
+import { artwork, artworkFallbacks } from '../lib/sprites'
 
 interface Props {
   id: number
   alt: string
   shiny: boolean
-  style?: SpriteStyle
   size: number
   className?: string
   /** Set only on the one image a view transition should morph. */
@@ -24,30 +17,29 @@ interface Props {
  *
  * Swapping `src` directly makes the browser drop the current frame and show
  * nothing until the replacement arrives — which is very visible when toggling
- * shiny across a screen full of 150 KB renders. So the new URL is loaded off
- * to the side first, and only swapped in once it is decoded.
+ * shiny across a screen full of large renders. So the new URL is loaded off to
+ * the side first, and only swapped in once it is decoded.
  *
- * It also walks a fallback chain: coverage is uneven across sprite styles, and
- * a missing file should degrade to a different render rather than a hole.
+ * It also walks a fallback chain, because a handful of forms have no official
+ * artwork and a missing file should degrade to another render, not a hole.
  */
 export function Sprite({
   id,
   alt,
   shiny,
-  style = DEFAULT_SPRITE_STYLE,
   size,
   className,
   transitionName,
   priority = false,
 }: Props) {
-  const target = artwork(id, shiny, style)
+  const target = artwork(id, shiny)
   const [shown, setShown] = useState(target)
   const [ready, setReady] = useState(false)
   const attempt = useRef(0)
 
   useEffect(() => {
     let cancelled = false
-    const candidates = [target, ...artworkFallbacks(id, shiny, style)]
+    const candidates = [target, ...artworkFallbacks(id, shiny)]
     attempt.current = 0
 
     const tryNext = () => {
@@ -86,19 +78,11 @@ export function Sprite({
     return () => {
       cancelled = true
     }
-  }, [target, id, shiny, style])
+  }, [target, id, shiny])
 
   return (
     <img
-      className={[
-        'sprite',
-        ready ? 'sprite--ready' : '',
-        // Animated sprites are small, old source art. Scaling them up with
-        // smoothing just makes them look blurry; keeping the pixels crisp
-        // reads as deliberate retro instead of low resolution.
-        isPixelated(style) ? 'sprite--pixelated' : '',
-        className ?? '',
-      ]
+      className={['sprite', ready ? 'sprite--ready' : '', className ?? '']
         .filter(Boolean)
         .join(' ')}
       src={shown}

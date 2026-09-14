@@ -2,9 +2,8 @@ import { createContext, useContext, useMemo } from 'react'
 import { Link, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { TeamBar } from './components/TeamBar'
 import { useDataset, type Dataset } from './lib/dataset'
-import { SPRITE_STYLES } from './lib/sprites'
 import { resolveForm, type TeamMember } from './lib/types'
-import { useShiny, useSpriteStyle } from './lib/usePrefs'
+import { useShiny } from './lib/usePrefs'
 import { useScrollRestoration } from './lib/useScrollRestoration'
 import { useTeam } from './lib/useTeam'
 import { DetailPage } from './routes/DetailPage'
@@ -22,7 +21,6 @@ export function useDex(): Dataset {
 export default function App() {
   const state = useDataset()
   const [shiny, toggleShiny] = useShiny()
-  const [spriteStyle, setSpriteStyle] = useSpriteStyle()
   const { team, stateOf, isFull, toggle, setForm, remove, clear } = useTeam()
   const location = useLocation()
 
@@ -60,23 +58,6 @@ export default function App() {
         </nav>
 
         <div className="topbar__prefs">
-          <label className="sprite-style">
-            <span className="visually-hidden">Sprite style</span>
-            <select
-              value={spriteStyle}
-              onChange={(event) =>
-                setSpriteStyle(event.target.value as (typeof SPRITE_STYLES)[number]['value'])
-              }
-              title={SPRITE_STYLES.find((style) => style.value === spriteStyle)?.hint}
-            >
-              {SPRITE_STYLES.map((style) => (
-                <option key={style.value} value={style.value}>
-                  {style.label}
-                </option>
-              ))}
-            </select>
-          </label>
-
           <button
             type="button"
             className={`shiny-toggle ${shiny ? 'shiny-toggle--on' : ''}`}
@@ -103,7 +84,6 @@ export default function App() {
                 element={
                   <IndexPage
                     shiny={shiny}
-                    spriteStyle={spriteStyle}
                     slotState={stateOf}
                     teamFull={isFull}
                     onToggleTeam={toggle}
@@ -115,7 +95,6 @@ export default function App() {
                 element={
                   <DetailPage
                     shiny={shiny}
-                    spriteStyle={spriteStyle}
                     slotState={stateOf}
                     teamFull={isFull}
                     onToggleTeam={toggle}

@@ -7,7 +7,6 @@ import { TypeBadge } from '../components/TypeBadge'
 import { WeaknessHeatmap } from '../components/WeaknessHeatmap'
 import { dexHref } from '../lib/dexLocation'
 import { displayName } from '../lib/pokedex'
-import { useSpriteStyle } from '../lib/usePrefs'
 import {
   formViews,
   STAT_ORDER,
@@ -42,7 +41,6 @@ function averageStats(team: TeamMember[]): Stats {
 
 export function TeamPage({ team, shiny, onRemove, onSetForm }: Props) {
   const { typeData } = useDex()
-  const [spriteStyle] = useSpriteStyle()
   useDocumentTitle(team.length > 0 ? `Team (${team.length}) · Pokédex` : 'Team · Pokédex')
 
   if (team.length === 0) {
@@ -94,7 +92,6 @@ export function TeamPage({ team, shiny, onRemove, onSetForm }: Props) {
                   id={view.id}
                   alt={displayName(view.name)}
                   shiny={shiny}
-                  style={spriteStyle}
                   size={96}
                 />
                 <span className="team-page__name">

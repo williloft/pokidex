@@ -1,14 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useWindowVirtualizer } from '@tanstack/react-virtual'
 import type { DexEntry } from '../lib/pokedex'
-import type { SpriteStyle } from '../lib/sprites'
 import type { SlotState } from '../lib/useTeam'
 import { PokemonCard } from './PokemonCard'
 
 interface Props {
   entries: DexEntry[]
   shiny: boolean
-  spriteStyle: SpriteStyle
   slotState: (id: number, form: string | null) => SlotState
   teamFull: boolean
   onToggleTeam: (id: number, form: string | null) => void
@@ -26,7 +24,6 @@ const GAP = 16
 export function PokemonGrid({
   entries,
   shiny,
-  spriteStyle,
   slotState,
   teamFull,
   onToggleTeam,
@@ -109,7 +106,6 @@ export function PokemonGrid({
                   key={entry.pokemon.id}
                   entry={entry}
                   shiny={shiny}
-                  spriteStyle={spriteStyle}
                   slotState={slotState}
                   teamFull={teamFull}
                   onToggleTeam={onToggleTeam}
