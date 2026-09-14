@@ -76,7 +76,7 @@ export function WeaknessHeatmap({ team, chart, allTypes, shiny }: Props) {
                 <th scope="col" key={pokemon.id}>
                   <img
                     src={pixelSprite(view.id, shiny)}
-                    alt={displayName(view.name)}
+                    alt={view.title}
                     width={40}
                     height={30}
                     loading="lazy"

@@ -88,18 +88,8 @@ export function TeamPage({ team, shiny, onRemove, onSetForm }: Props) {
                 }
                 viewTransition
               >
-                <Sprite
-                  id={view.id}
-                  alt={displayName(view.name)}
-                  shiny={shiny}
-                  size={96}
-                />
-                <span className="team-page__name">
-                  {displayName(pokemon.name)}
-                  {view.category !== 'default' ? (
-                    <span className="card__form">{view.label}</span>
-                  ) : null}
-                </span>
+                <Sprite id={view.id} alt={view.title} shiny={shiny} size={128} />
+                <span className="team-page__name">{view.title}</span>
               </Link>
 
               <div className="team-page__types">

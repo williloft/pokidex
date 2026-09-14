@@ -549,21 +549,13 @@ a {
 }
 
 .card__name {
-  display: grid;
-  justify-items: center;
-  gap: 1px;
   font-size: 0.98rem;
   font-weight: 650;
+  line-height: 1.15;
   text-align: center;
+  text-wrap: balance;
 }
 
-.card__form {
-  color: var(--text-dim);
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
 
 .card__types {
   display: flex;
@@ -639,11 +631,16 @@ a {
 }
 
 .swatches--sm {
+  justify-content: center;
+}
+
+/* Only inside a grid card do the swatches float over the artwork. Elsewhere
+   they sit in the flow, or they escape their container entirely. */
+.card .swatches--sm {
   position: absolute;
   bottom: 8px;
   left: 0;
   right: 0;
-  justify-content: center;
 }
 
 .swatch {
@@ -1113,11 +1110,17 @@ a {
 
 .team-page__roster {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
   gap: 12px;
   margin: 0 0 20px;
   padding: 0;
   list-style: none;
+}
+
+.team-page__roster .sprite {
+  width: 128px;
+  height: 128px;
+  object-fit: contain;
 }
 
 .team-page__roster li {
@@ -1139,6 +1142,8 @@ a {
 
 .team-page__name {
   font-weight: 600;
+  text-align: center;
+  text-wrap: balance;
 }
 
 .team-page__types {

@@ -81,19 +81,14 @@ export const PokemonCard = memo(function PokemonCard({
 
         <Sprite
           id={view.id}
-          alt={displayName(view.name)}
+          alt={view.title}
           shiny={shiny}
           size={240}
           className="card__art"
           transitionName={navigating ? `art-${view.id}` : undefined}
         />
 
-        <h2 className="card__name">
-          {displayName(pokemon.name)}
-          {view.category !== 'default' ? (
-            <span className="card__form">{view.label}</span>
-          ) : null}
-        </h2>
+        <h2 className="card__name">{view.title}</h2>
 
         <div className="card__types">
           {view.types.map((type) => (
@@ -122,10 +117,10 @@ export const PokemonCard = memo(function PokemonCard({
             ? `Remove ${displayName(pokemon.name)} from your team`
             : slot === 'other-form'
               ? // The species already has a slot — this swaps which variant fills it.
-                `Run ${view.label} instead on your team`
+                `Run ${view.title} instead on your team`
               : disabled
                 ? 'Your team is full'
-                : `Add ${displayName(view.name)} to your team`
+                : `Add ${view.title} to your team`
         }
       >
         {slot === 'in' ? '−' : slot === 'other-form' ? '⇄' : '+'}

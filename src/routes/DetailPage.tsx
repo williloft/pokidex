@@ -36,7 +36,7 @@ export function DetailPage({ shiny, slotState, teamFull, onToggleTeam }: Props) 
   const view = pokemon ? resolveForm(pokemon, params.get('form')) : null
   useDocumentTitle(
     pokemon && view
-      ? `${displayName(pokemon.name)}${view.category === 'default' ? '' : ` · ${view.label}`} · Pokédex`
+      ? `${view.title} · Pokédex`
       : 'Pokédex',
   )
 
@@ -146,7 +146,7 @@ export function DetailPage({ shiny, slotState, teamFull, onToggleTeam }: Props) 
         <div className="detail__art">
           <Sprite
             id={view.id}
-            alt={displayName(view.name)}
+            alt={view.title}
             shiny={shiny}
             size={360}
             priority
@@ -156,7 +156,7 @@ export function DetailPage({ shiny, slotState, teamFull, onToggleTeam }: Props) 
 
         <div className="detail__intro">
           <p className="detail__number">{dexNumber(pokemon.id)}</p>
-          <h1>{displayName(pokemon.name)}</h1>
+          <h1>{view.title}</h1>
           {detail?.genus ? <p className="detail__genus">{detail.genus}</p> : null}
 
           {views.length > 1 ? (
@@ -219,7 +219,7 @@ export function DetailPage({ shiny, slotState, teamFull, onToggleTeam }: Props) 
               {slot === 'in'
                 ? 'In your team'
                 : slot === 'other-form'
-                  ? `Run ${view.label} instead`
+                  ? `Run ${view.title} instead`
                   : teamFull
                     ? 'Team is full'
                     : 'Add to team'}

@@ -96,7 +96,10 @@ export interface FormView {
   /** Sprite id — the species number, or the form's own id above 10000. */
   id: number
   name: string
+  /** Short chip label, e.g. "Mega X". */
   label: string
+  /** How it is actually written: "Mega Golurk", "Gigantamax Charizard". */
+  title: string
   category: FormCategory | 'default'
   types: string[]
   stats: Stats
@@ -105,10 +108,56 @@ export interface FormView {
   abilities: Ability[]
 }
 
+const REGIONAL_ADJECTIVES: Record<string, string> = {
+  Alola: 'Alolan',
+  Galar: 'Galarian',
+  Hisui: 'Hisuian',
+  Paldea: 'Paldean',
+}
+
+const titleCase = (name: string): string =>
+  name
+    .split('-')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ')
+    .replace(/^Mr /, 'Mr. ')
+    .replace(/^Mime Jr /, 'Mime Jr. ')
+
+/**
+ * Write a form the way people say it.
+ *
+ * Form names in the API are suffixes — "golurk-mega", "charizard-gmax" — but
+ * nobody calls it Golurk Mega. Almost every form reads as a prefix on the
+ * species, with Mega's X/Y variants trailing after it.
+ */
+export function formTitle(speciesName: string, label: string, category: FormCategory): string {
+  const species = titleCase(speciesName)
+  const words = label.split(' ')
+  const [first, ...rest] = words
+
+  switch (category) {
+    case 'mega': {
+      // "Mega X" -> Mega Charizard X
+      const variant = rest.join(' ')
+      return `Mega ${species}${variant ? ` ${variant}` : ''}`
+    }
+    case 'gmax':
+      return `Gmax ${species}`
+    case 'regional': {
+      const adjective = REGIONAL_ADJECTIVES[first ?? ''] ?? first ?? ''
+      const extra = rest.join(' ')
+      return `${adjective} ${species}${extra ? ` (${extra})` : ''}`
+    }
+    default:
+      return `${label} ${species}`
+  }
+}
+
 const baseView = (pokemon: Pokemon): FormView => ({
   id: pokemon.id,
   name: pokemon.name,
   label: 'Base',
+  title: titleCase(pokemon.name),
   category: 'default',
   types: pokemon.types,
   stats: pokemon.stats,
@@ -125,6 +174,7 @@ export function formViews(pokemon: Pokemon): FormView[] {
       id: form.id,
       name: form.name,
       label: form.label,
+      title: formTitle(pokemon.name, form.label, form.category),
       category: form.category,
       types: form.types,
       stats: form.stats,

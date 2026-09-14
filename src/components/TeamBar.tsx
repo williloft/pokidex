@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom'
-import { displayName } from '../lib/pokedex'
 import { pixelSprite } from '../lib/sprites'
 import { TEAM_SIZE } from '../lib/useTeam'
 import type { TeamMember } from '../lib/types'
@@ -26,16 +25,12 @@ export function TeamBar({ team, shiny, onRemove, onClear }: Props) {
               <button
                 type="button"
                 onClick={() => onRemove(pokemon.id)}
-                title={
-                  view.category === 'default'
-                    ? `Remove ${displayName(pokemon.name)}`
-                    : `Remove ${displayName(pokemon.name)} (${view.label})`
-                }
+                title={`Remove ${view.title}`}
               >
                 <img
                   // The slot shows the variant being run, not the base species.
                   src={pixelSprite(view.id, shiny)}
-                  alt={displayName(view.name)}
+                  alt={view.title}
                   width={48}
                   height={36}
                   loading="lazy"
