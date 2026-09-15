@@ -429,7 +429,9 @@ export function BattlePage({ team, shiny }: Props) {
                       disabled={down || current || busy}
                       onClick={() =>
                         battle.phase === 'must-switch'
-                          ? setBattle(sendIn(battle, index))
+                          ? // Through the queue like every other beat, so your
+                            // replacement gets the same entrance the opponent's does.
+                            setQueue([sendIn(battle, index)])
                           : act({ kind: 'switch', index })
                       }
                     >

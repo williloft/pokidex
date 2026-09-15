@@ -263,13 +263,39 @@ export function bestMoveIndex(
 
 export type OpponentAction = { kind: 'move'; index: number } | { kind: 'switch'; to: Battler }
 
+/** The moves a battler would actually pick from, Struggle included as a floor. */
+const attackPool = (battler: Battler): Move[] => {
+  const moves = usableMoves(battler).map((slot) => slot.move)
+  return moves.length > 0 ? moves : [STRUGGLE]
+}
+
+/** The best multiplier one side can reach against the other. */
+const bestMultiplier = (chart: TypeChart, attacker: Battler, defender: Battler): number =>
+  Math.max(...attackPool(attacker).map((move) => moveEffectiveness(chart, move, defender.view.types)))
+
+/**
+ * How long a trainer sticks with what it has out before considering a switch.
+ *
+ * Without this the opponent mirrors you: you send something in, it answers on
+ * the very next turn, and you can never establish a matchup. Real trainers
+ * commit to what is on the field.
+ */
+const PATIENCE: Record<Difficulty, number> = { easy: Infinity, normal: 3, hard: 2 }
+
+/** How often it takes a switch it has decided is available. */
+const SWITCH_NERVE: Record<Difficulty, number> = { easy: 0, normal: 0.45, hard: 0.7 }
+
 /**
  * How well the opponent plays.
  *
- * Easy picks a move at random and never retreats. Normal picks its best move
- * and pulls out when it is being walled. Hard also switches to whichever of its
- * remaining Pokémon best answers yours, which is the same reasoning the team
- * page asks of you.
+ * Easy picks a move at random and never retreats. Normal and Hard pick their
+ * best move, and pull out only when the matchup has actually gone against them
+ * — taking super-effective damage, or unable to get through what is in front
+ * of them. Even then they will not switch two turns running, and even then it
+ * is a coin weighted by difficulty rather than a certainty.
+ *
+ * `turnsSinceSwitch` is how long the current Pokémon has been out; a trainer
+ * that has just sent something in does not immediately take it back.
  */
 export function chooseOpponentAction(
   chart: TypeChart,
@@ -278,6 +304,7 @@ export function chooseOpponentAction(
   target: Battler,
   difficulty: Difficulty,
   roll: () => number = Math.random,
+  turnsSinceSwitch = Number.POSITIVE_INFINITY,
 ): OpponentAction {
   const attack = (): OpponentAction => ({
     kind: 'move',
@@ -287,24 +314,43 @@ export function chooseOpponentAction(
   const available = bench.filter((member) => !isDown(member) && member.key !== active.key)
   if (available.length === 0 || difficulty === 'easy') return attack()
 
-  // What each side would do to the other, best move against best move.
-  const threat = (attacker: Battler, defender: Battler) => {
-    const moves = usableMoves(attacker).map((slot) => slot.move)
-    const pool = moves.length > 0 ? moves : [STRUGGLE]
-    return Math.max(...pool.map((move) => expectedDamage(chart, attacker, defender, move)))
-  }
+  // Just came in — see how it goes before thinking about leaving again.
+  if (turnsSinceSwitch < PATIENCE[difficulty]) return attack()
+
+  /*
+   * Is this actually a bad spot, or merely not the best one available?
+   *
+   * Scoring every bench slot and taking the maximum meant switching whenever
+   * anything was marginally better, which is how the opponent ended up
+   * answering every move you made. The question is the one a player asks: am I
+   * being hit hard, or am I failing to hit back?
+   */
+  const takingHeavy = bestMultiplier(chart, target, active) >= 2
+  const wallSituation = bestMultiplier(chart, active, target) <= 0.5
+  if (!takingHeavy && !wallSituation) return attack()
+
+  if (roll() >= SWITCH_NERVE[difficulty]) return attack()
+
+  /*
+   * Only leave for something that improves the matchup.
+   *
+   * Judged against what is out rather than against a fixed bar: a trainer
+   * built around one type shares its weakness across the whole team, and an
+   * absolute test ("must not be weak to you") would mean such a trainer could
+   * never switch at all.
+   */
+  const takes = (member: Battler) => bestMultiplier(chart, target, member)
+  const gives = (member: Battler) => bestMultiplier(chart, member, target)
+  const answers = available.filter(
+    (member) => takes(member) < takes(active) || gives(member) > gives(active),
+  )
+  if (answers.length === 0) return attack()
+
+  const threat = (attacker: Battler, defender: Battler) =>
+    Math.max(...attackPool(attacker).map((move) => expectedDamage(chart, attacker, defender, move)))
 
   const score = (battler: Battler) => threat(battler, target) - threat(target, battler)
+  const best = [...answers].sort((a, b) => score(b) - score(a))[0]!
 
-  const current = score(active)
-  const best = [...available].sort((a, b) => score(b) - score(a))[0]!
-  const gain = score(best) - current
-
-  if (difficulty === 'normal') {
-    // Only bail out of a genuinely bad spot, and not every single time.
-    return current < 0 && gain > 0 && roll() < 0.6 ? { kind: 'switch', to: best } : attack()
-  }
-
-  // A switch costs a turn, so it has to be worth clearly more than staying in.
-  return gain > Math.abs(current) * 0.5 + 1 ? { kind: 'switch', to: best } : attack()
+  return score(best) > score(active) ? { kind: 'switch', to: best } : attack()
 }

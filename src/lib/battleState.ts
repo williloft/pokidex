@@ -45,6 +45,14 @@ export interface BattleState {
   phase: Phase
   winner: 'player' | 'foe' | null
   turn: number
+  /**
+   * The turn the opponent last changed Pokémon, voluntarily or after a faint.
+   *
+   * The AI reads this so it commits to what it has out instead of answering
+   * every move you make — without it, it mirrors your every switch and you can
+   * never establish a matchup.
+   */
+  foeLastSwitch: number
 }
 
 export type PlayerAction = { kind: 'move'; index: number } | { kind: 'switch'; index: number }
@@ -79,6 +87,8 @@ export function startBattle(player: Battler[], trainer: Trainer): BattleState {
     phase: 'choosing',
     winner: null,
     turn: 1,
+    // Its lead counts as having just come in, so it does not open by retreating.
+    foeLastSwitch: 1,
     beat: null,
   }
 }
@@ -229,7 +239,9 @@ function settle(state: BattleState): BattleState {
       return say({ ...next, phase: 'over', winner: 'player' }, 'You win.')
     }
     next = say(
-      { ...next, foeActive: replacement },
+      // A replacement has only just arrived, so it gets the same grace period
+      // as one that was switched in on purpose.
+      { ...next, foeActive: replacement, foeLastSwitch: next.turn + 1 },
       `${next.trainer.blueprint.name} sends out ${next.foe[replacement]!.view.title}.`,
     )
   }
@@ -275,14 +287,16 @@ export function resolveTurn(
     active(state.player, state.playerActive),
     difficulty,
     roll,
+    state.turn - state.foeLastSwitch,
   )
 
   const frames: BattleState[] = []
   let next = state
 
-  if (playerAction.kind === 'switch') {
+  const swapPlayer = () => {
+    if (playerAction.kind !== 'switch') return
     const incoming = next.player[playerAction.index]
-    if (!incoming || isDown(incoming) || playerAction.index === next.playerActive) return [state]
+    if (!incoming) return
     next = say(
       { ...next, playerActive: playerAction.index, beat: { kind: 'switch', side: 'player' } },
       `You send out ${incoming.view.title}.`,
@@ -290,15 +304,40 @@ export function resolveTurn(
     frames.push(next)
   }
 
-  if (foeAction.kind === 'switch') {
+  const swapFoe = () => {
+    if (foeAction.kind !== 'switch') return
     const index = next.foe.findIndex((member) => member.key === foeAction.to.key)
-    if (index >= 0) {
-      next = say(
-        { ...next, foeActive: index, beat: { kind: 'switch', side: 'foe' } },
-        `${next.trainer.blueprint.name} switches to ${foeAction.to.view.title}.`,
-      )
-      frames.push(next)
+    if (index < 0) return
+    next = say(
+      { ...next, foeActive: index, foeLastSwitch: next.turn, beat: { kind: 'switch', side: 'foe' } },
+      `${next.trainer.blueprint.name} switches to ${foeAction.to.view.title}.`,
+    )
+    frames.push(next)
+  }
+
+  if (playerAction.kind === 'switch') {
+    const incoming = next.player[playerAction.index]
+    if (!incoming || isDown(incoming) || playerAction.index === next.playerActive) return [state]
+  }
+
+  /*
+   * Switches resolve before any attack, and among themselves by the speed of
+   * whoever is leaving — as in the games. It only changes which sprite you see
+   * step out first, but that is the order the games show.
+   */
+  if (playerAction.kind === 'switch' && foeAction.kind === 'switch') {
+    const mine = active(next.player, next.playerActive)
+    const theirs = active(next.foe, next.foeActive)
+    if (firstMover(mine, theirs, null, null, roll) === 'a') {
+      swapPlayer()
+      swapFoe()
+    } else {
+      swapFoe()
+      swapPlayer()
     }
+  } else {
+    swapPlayer()
+    swapFoe()
   }
 
   const playerSlot = playerAction.kind === 'move' ? playerAction.index : null

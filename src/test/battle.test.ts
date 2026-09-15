@@ -278,23 +278,70 @@ describe('bestMoveIndex', () => {
 })
 
 describe('chooseOpponentAction', () => {
+  // Grass out against fire: it is taking 2x and dealing 0.5x, which is as bad
+  // as a matchup gets. Water on the bench answers the fire.
   const active = battlerOf('grassmon', ['grass'], {}, ['vine'])
   const better = battlerOf('watermon', ['water'], {}, ['splash'])
   const target = battlerOf('firemon', ['fire'], {}, ['ember'])
+  const settled = 9
 
   it('never thinks on easy', () => {
-    const action = chooseOpponentAction(chart, active, [active, better], target, 'easy', () => 0)
+    const action = chooseOpponentAction(chart, active, [active, better], target, 'easy', () => 0, settled)
     expect(action.kind).toBe('move')
   })
 
   it('switches to a better answer on hard', () => {
-    const action = chooseOpponentAction(chart, active, [active, better], target, 'hard', () => 0)
+    const action = chooseOpponentAction(chart, active, [active, better], target, 'hard', () => 0, settled)
     expect(action.kind).toBe('switch')
     if (action.kind === 'switch') expect(action.to.key).toBe('watermon')
   })
 
   it('attacks when nothing on the bench is better', () => {
-    const action = chooseOpponentAction(chart, better, [better], target, 'hard', () => 0)
+    const action = chooseOpponentAction(chart, better, [better], target, 'hard', () => 0, settled)
+    expect(action.kind).toBe('move')
+  })
+
+  /*
+   * The rest of this block is the fix for an opponent that mirrored you: it
+   * answered every Pokémon you sent in, on the very next turn, so no matchup
+   * could ever be established.
+   */
+  it('will not switch again on the turn after it has just come in', () => {
+    for (const turnsSince of [0, 1]) {
+      const action = chooseOpponentAction(chart, active, [active, better], target, 'hard', () => 0, turnsSince)
+      expect(action.kind).toBe('move')
+    }
+  })
+
+  it('gives Normal a longer fuse than Hard', () => {
+    const asHard = chooseOpponentAction(chart, active, [active, better], target, 'hard', () => 0, 2)
+    const asNormal = chooseOpponentAction(chart, active, [active, better], target, 'normal', () => 0, 2)
+    expect(asHard.kind).toBe('switch')
+    expect(asNormal.kind).toBe('move')
+  })
+
+  it('stays in when the matchup is merely not the best one going', () => {
+    // Neutral both ways: nothing is being walled and nothing is taking heavy
+    // damage, so there is no reason to give up a turn.
+    const plain = battlerOf('plainmon', ['normal'], {}, ['tackle'])
+    const other = battlerOf('othermon', ['water'], {}, ['splash'])
+    const dull = battlerOf('dullmon', ['normal'], {}, ['tackle'])
+    const action = chooseOpponentAction(chart, plain, [plain, other], dull, 'hard', () => 0, settled)
+    expect(action.kind).toBe('move')
+  })
+
+  it('is a weighted coin, not a certainty', () => {
+    // Hard takes the switch 70% of the time; a roll above that stays in.
+    const bold = chooseOpponentAction(chart, active, [active, better], target, 'hard', () => 0.5, settled)
+    const shy = chooseOpponentAction(chart, active, [active, better], target, 'hard', () => 0.95, settled)
+    expect(bold.kind).toBe('switch')
+    expect(shy.kind).toBe('move')
+  })
+
+  it('refuses a switch into something that would be worse off', () => {
+    // The only bench slot is also weak to fire, so leaving gains nothing.
+    const alsoBad = battlerOf('bugmon', ['grass'], {}, ['vine'])
+    const action = chooseOpponentAction(chart, active, [active, alsoBad], target, 'hard', () => 0, settled)
     expect(action.kind).toBe('move')
   })
 })
@@ -425,8 +472,11 @@ describe('the battle loop', () => {
         battlerOf('foe-water', ['water'], {}, ['splash']),
       ],
     }
+    const opening = startBattle([battlerOf('you-fire', ['fire'], {}, ['ember'])], walled)
     const frames = resolveTurn(
-      startBattle([battlerOf('you-fire', ['fire'], {}, ['ember'])], walled),
+      // Its lead has been out a while, so it is past the grace period that
+      // stops it answering every Pokémon you send in.
+      { ...opening, turn: 6, foeLastSwitch: 1 },
       { kind: 'move', index: 0 },
       { chart, difficulty: 'hard', roll: () => 0.5 },
     )
