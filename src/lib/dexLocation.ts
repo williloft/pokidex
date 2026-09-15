@@ -30,8 +30,11 @@ function readSearch(): string {
   return lastSearch
 }
 
+/** Where the grid lives. The root is the home page. */
+const DEX_PATH = '/dex'
+
 /** Link back to the dex exactly as the user left it. */
-export const dexHref = (): string => `/${readSearch()}`
+export const dexHref = (): string => `${DEX_PATH}${readSearch()}`
 
 /** Link to the dex with one type applied on top of the existing filters. */
 export function dexHrefWithType(type: string): string {
@@ -39,5 +42,5 @@ export function dexHrefWithType(type: string): string {
   const types = filters.types.includes(type) ? filters.types : [...filters.types, type].slice(-2)
   const search = serialiseFilters({ ...filters, types })
   const query = search.toString()
-  return query ? `/?${query}` : '/'
+  return query ? `${DEX_PATH}?${query}` : DEX_PATH
 }

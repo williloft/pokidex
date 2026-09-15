@@ -5,10 +5,12 @@ import { TeamBar } from './components/TeamBar'
 import { useDataset, type Dataset } from './lib/dataset'
 import { resolveForm, type TeamMember } from './lib/types'
 import { useShiny } from './lib/usePrefs'
+import { dexHref } from './lib/dexLocation'
 import { useScrollRestoration } from './lib/useScrollRestoration'
 import { useTeam } from './lib/useTeam'
 import { BattlePage } from './routes/BattlePage'
 import { DetailPage } from './routes/DetailPage'
+import { HomePage } from './routes/HomePage'
 import { IndexPage } from './routes/IndexPage'
 import { QuizPage } from './routes/QuizPage'
 import { TeamPage } from './routes/TeamPage'
@@ -53,7 +55,7 @@ export default function App() {
       .filter((member): member is TeamMember => member !== null)
   }, [dataset, team])
 
-  const chromeless = ['/team', '/quiz'].includes(location.pathname)
+  const chromeless = ['/', '/team', '/quiz'].includes(location.pathname)
   const showTeamBar = !chromeless && teamMembers.length > 0
 
   return (
@@ -65,7 +67,7 @@ export default function App() {
         </Link>
 
         <nav className="topbar__nav">
-          <NavLink to="/" end viewTransition>
+          <NavLink to={dexHref()} viewTransition>
             Browse
           </NavLink>
           <NavLink to="/team" viewTransition>
@@ -102,8 +104,9 @@ export default function App() {
         ) : (
           <DatasetContext.Provider value={state.data}>
             <Routes location={location}>
+              <Route index element={<HomePage team={teamMembers} shiny={shiny} />} />
               <Route
-                index
+                path="/dex"
                 element={
                   <IndexPage
                     shiny={shiny}
@@ -148,7 +151,7 @@ export default function App() {
                 element={
                   <div className="notice">
                     <p>No such page.</p>
-                    <Link className="button" to="/">
+                    <Link className="button" to={dexHref()}>
                       Back to the dex
                     </Link>
                   </div>
