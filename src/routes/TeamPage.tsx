@@ -9,10 +9,11 @@ import { Suggestions } from '../components/Suggestions'
 import { TypeBadge } from '../components/TypeBadge'
 import { WeaknessHeatmap } from '../components/WeaknessHeatmap'
 import { dexHref } from '../lib/dexLocation'
-import { displayName } from '../lib/pokedex'
+import { dexNumber, displayName } from '../lib/pokedex'
 import { suggestMembers, teamNotices } from '../lib/suggest'
 import {
   selectableViews,
+  STAT_LABELS,
   STAT_ORDER,
   statTotal,
   type StatName,
@@ -116,8 +117,15 @@ export function TeamPage({
           const { pokemon, view } = member
           const views = selectableViews(pokemon)
           return (
-            <li key={pokemon.id}>
+            <li
+              key={pokemon.id}
+              className="roster"
+              style={
+                { '--roster-accent': `var(--type-${view.types[0] ?? 'normal'})` } as React.CSSProperties
+              }
+            >
               <Link
+                className="roster__head"
                 to={
                   view.category === 'default'
                     ? `/pokemon/${pokemon.name}`
@@ -125,54 +133,84 @@ export function TeamPage({
                 }
                 viewTransition
               >
-                <Sprite id={view.id} alt={view.title} shiny={shiny} size={128} />
-                <span className="team-page__name">{view.title}</span>
+                <Sprite id={view.id} alt={view.title} shiny={shiny} size={112} />
+                <span className="roster__identity">
+                  <span className="roster__number">{dexNumber(pokemon.id)}</span>
+                  <span className="roster__name">{view.title}</span>
+                  <span className="roster__types">
+                    {view.types.map((type) => (
+                      <TypeBadge key={type} type={type} />
+                    ))}
+                  </span>
+                </span>
               </Link>
 
-              <div className="team-page__types">
-                {view.types.map((type) => (
-                  <TypeBadge key={type} type={type} />
-                ))}
+              {/* Swap the variant here and the whole analysis below follows. */}
+              {views.length > 1 ? (
+                <FormSwatches
+                  views={views}
+                  selected={view.name}
+                  onSelect={(formName) =>
+                    onSetForm(pokemon.id, formName === pokemon.name ? null : formName)
+                  }
+                  name={displayName(pokemon.name)}
+                />
+              ) : null}
+
+              {/* Enough of the numbers to judge it without opening the entry. */}
+              <div className="roster__stats">
+                <span className="roster__bst">
+                  <strong>{statTotal(view.stats)}</strong> BST
+                </span>
+                <span className="roster__spread" aria-hidden="true">
+                  {STAT_ORDER.map((key) => (
+                    <span
+                      key={key}
+                      className="roster__tick"
+                      title={`${STAT_LABELS[key]} ${view.stats[key]}`}
+                      style={{ height: `${Math.min(100, (view.stats[key] / 180) * 100)}%` }}
+                    />
+                  ))}
+                </span>
               </div>
 
-              {/* Swap the variant here and the whole analysis below follows. */}
-              <FormSwatches
-                views={views}
-                selected={view.name}
-                onSelect={(formName) =>
-                  onSetForm(pokemon.id, formName === pokemon.name ? null : formName)
-                }
-                name={displayName(pokemon.name)}
-              />
-
-              {/* What it will actually fight with, and the way in to change it. */}
-              <ul className="team-page__moves">
-                {member.moves.length > 0 ? (
-                  member.moves.map((name) => {
-                    const move = moveIndex[name]
+              {/*
+                * Four fixed slots rather than a wrapping row.
+                *
+                * Flex-wrap centred the chips, so four moves landed one-two-one
+                * and no two cards agreed with each other. A 2x2 grid puts every
+                * move in the same place on every card, and an unfilled slot
+                * stays visible as a gap you can act on.
+                */}
+              <ul className="roster__moves">
+                {[0, 1, 2, 3].map((slot) => {
+                  const name = member.moves[slot]
+                  const move = name ? moveIndex[name] : undefined
+                  if (!name) {
                     return (
-                      <li key={name}>
-                        <span
-                          className="team-page__move"
-                          style={
-                            {
-                              '--move-accent': `var(--type-${move?.type ?? 'normal'})`,
-                            } as React.CSSProperties
-                          }
-                        >
-                          {moveLabel(name)}
-                        </span>
+                      <li key={slot} className="roster__move roster__move--empty">
+                        Empty
                       </li>
                     )
-                  })
-                ) : (
-                  <li>
-                    <span className="team-page__move team-page__move--none">No moves</span>
-                  </li>
-                )}
+                  }
+                  return (
+                    <li
+                      key={name}
+                      className="roster__move"
+                      title={move ? `${move.type} · ${move.power} power` : undefined}
+                      style={
+                        {
+                          '--move-accent': `var(--type-${move?.type ?? 'normal'})`,
+                        } as React.CSSProperties
+                      }
+                    >
+                      {moveLabel(name)}
+                    </li>
+                  )
+                })}
               </ul>
 
-              <div className="team-page__actions">
+              <div className="roster__actions">
                 <button
                   type="button"
                   className="chip"
@@ -183,7 +221,8 @@ export function TeamPage({
                 </button>
                 <button
                   type="button"
-                  className="chip chip--ghost"
+                  className="roster__remove"
+                  aria-label={`Remove ${view.title} from your team`}
                   onClick={() => onRemove(pokemon.id)}
                 >
                   Remove

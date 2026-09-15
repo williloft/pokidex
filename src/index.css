@@ -1142,45 +1142,168 @@ a {
 
 .team-page__roster {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 12px;
   margin: 0 0 20px;
   padding: 0;
   list-style: none;
 }
 
-.team-page__roster .sprite {
-  width: 128px;
-  height: 128px;
-  object-fit: contain;
-}
-
-.team-page__roster li {
-  display: grid;
-  justify-items: center;
-  gap: 8px;
+/*
+ * A roster card reads top to bottom: who it is, which form, how strong, what
+ * it will throw, and what you can do about it. Everything used to be centred
+ * and the same weight, which made six of them a wall of pills.
+ */
+.roster {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   padding: 14px;
   border: 1px solid var(--border);
+  border-top: 3px solid var(--roster-accent);
   border-radius: var(--radius);
   background: var(--bg-raised);
 }
 
-.team-page__roster a {
+.roster__head {
   display: grid;
-  justify-items: center;
-  gap: 6px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
   text-decoration: none;
 }
 
-.team-page__name {
-  font-weight: 600;
-  text-align: center;
+.roster__head .sprite {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+}
+
+.roster__identity {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.roster__number {
+  color: var(--text-dim);
+  font-family: var(--font-display);
+  font-size: 0.74rem;
+  font-weight: 650;
+}
+
+.roster__name {
+  font-family: var(--font-display);
+  font-size: 1.02rem;
+  font-weight: 650;
+  line-height: 1.2;
   text-wrap: balance;
 }
 
-.team-page__types {
+.roster__types {
   display: flex;
-  gap: 5px;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+/* Enough of the numbers to judge it without opening the entry. */
+.roster__stats {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.roster__bst {
+  color: var(--text-dim);
+  font-size: 0.76rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.roster__bst strong {
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Six ticks: the stat spread at a glance, not a table. */
+.roster__spread {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 22px;
+}
+
+.roster__tick {
+  width: 5px;
+  min-height: 2px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--roster-accent) 70%, transparent);
+}
+
+.roster__moves {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.roster__move {
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-inline-start: 3px solid var(--move-accent);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+/* An unfilled slot stays visible as a gap you can act on. */
+.roster__move--empty {
+  border-style: dashed;
+  border-inline-start-style: dashed;
+  border-inline-start-color: var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  font-style: italic;
+  font-weight: 500;
+}
+
+.roster__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+}
+
+/* Removing is destructive and rare, so it does not get a button's weight. */
+.roster__remove {
+  padding: 6px 4px;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.roster__remove:hover {
+  color: var(--type-fire);
+  text-decoration: underline;
+}
+
+.roster .swatches {
+  justify-content: flex-start;
 }
 
 .threats {

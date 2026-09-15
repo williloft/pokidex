@@ -37,9 +37,18 @@ export default function App() {
         const pokemon = dataset.byId.get(entry.id)
         if (!pokemon) return null
         const view = resolveForm(pokemon, entry.form)
-        // A slot that has never been edited follows the dataset, so a rebuild
-        // that improves the default movesets reaches teams saved long ago.
-        return { pokemon, view, moves: entry.moves ?? view.moves ?? [] }
+        /*
+         * A slot that has never been edited follows the dataset, so a rebuild
+         * that improves the default movesets reaches teams saved long ago.
+         *
+         * The species fallback matters for Gigantamax forms: the API gives
+         * them no moves of their own, and makeBattler already borrows the
+         * species' set. Without the same fallback here the team card showed
+         * four empty slots for a Pokémon that fights with a full four.
+         */
+        const own = view.moves ?? []
+        const moves = entry.moves ?? (own.length > 0 ? own : (pokemon.moves ?? []))
+        return { pokemon, view, moves }
       })
       .filter((member): member is TeamMember => member !== null)
   }, [dataset, team])
