@@ -20,7 +20,15 @@ import {
   type PlayerAction,
 } from '../lib/battleState'
 import { dexHref } from '../lib/dexLocation'
-import { buildTrainer, pickBlueprint, TRAINERS, type TrainerBlueprint } from '../lib/trainers'
+import { ladderProgress, ladderSteps, useLadder, withWin } from '../lib/ladder'
+import {
+  buildTrainer,
+  fieldTeam,
+  TIER_RULES,
+  TIERS,
+  type TrainerBlueprint,
+} from '../lib/trainers'
+import { TrainerSigil } from '../components/TrainerSigil'
 import type { TeamMember } from '../lib/types'
 import { useDocumentTitle } from '../lib/useScrollRestoration'
 
@@ -108,8 +116,9 @@ export function BattlePage({ team, shiny }: Props) {
   useDocumentTitle('Battle · Pokédex')
 
   const [difficulty, setDifficulty] = useState<Difficulty>('normal')
-  const [blueprint, setBlueprint] = useState<TrainerBlueprint>(() => pickBlueprint())
+  const [blueprint, setBlueprint] = useState<TrainerBlueprint | null>(null)
   const [battle, setBattle] = useState<BattleState | null>(null)
+  const [ladder, setLadder] = useLadder()
 
   /*
    * A turn is decided in one go but shown one beat at a time: the queue holds
@@ -128,6 +137,20 @@ export function BattlePage({ team, shiny }: Props) {
     return () => window.clearTimeout(timer)
   }, [queue])
 
+  /*
+   * Record the win once the whole exchange has finished playing, not the
+   * moment the state says 'over' — otherwise the rung after this one unlocks
+   * while you are still watching the last Pokémon faint.
+   */
+  const settledWinner = queue.length === 0 ? battle?.winner : null
+  useEffect(() => {
+    if (settledWinner !== 'player' || !blueprint) return
+    setLadder(withWin(ladder, difficulty, blueprint.id))
+    // The ladder is keyed by trainer and difficulty, so re-running on an
+    // unchanged win is a no-op; only a new one moves it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settledWinner, blueprint, difficulty])
+
   if (team.length === 0) {
     return (
       <div className="notice">
@@ -140,17 +163,28 @@ export function BattlePage({ team, shiny }: Props) {
     )
   }
 
-  const begin = () => {
-    const trainer = buildTrainer(blueprint, pokedex.pokemon, difficulty, moveIndex)
+  const tier = TIERS[difficulty]
+  const steps = ladderSteps(ladder, difficulty)
+  const progress = ladderProgress(ladder, difficulty)
+
+  // What your six actually walk out as under this tier's rules.
+  const fielded = fieldTeam(team, tier)
+  const changes = fielded
+    .map((entry) => entry.note)
+    .filter((note): note is string => note !== null)
+
+  const begin = (against: TrainerBlueprint) => {
+    const trainer = buildTrainer(against, pokedex.pokemon, difficulty, moveIndex)
     const party = team.map((member, index) =>
       makeBattler(
         member.pokemon,
-        member.view,
+        fielded[index]?.view ?? member.view,
         `you-${member.pokemon.id}-${index}`,
         moveIndex,
         member.moves,
       ),
     )
+    setBlueprint(against)
     setQueue([])
     setBattle(startBattle(party, trainer))
   }
@@ -191,41 +225,72 @@ export function BattlePage({ team, shiny }: Props) {
               </button>
             ))}
           </div>
+          <p className="panel__note">{TIER_RULES[difficulty]}</p>
 
-          <h2 className="battle__subhead">Opponent</h2>
-          <ul className="trainer-list">
-            {TRAINERS.map((option) => (
-              <li key={option.id}>
+          {/* Say up front what the tier will do to your own six. */}
+          {changes.length > 0 ? (
+            <p className="team-notice" role="status">
+              <strong>On this difficulty:</strong> {changes.join(' · ')}. Your saved team is not
+              changed.
+            </p>
+          ) : null}
+
+          <h2 className="battle__subhead">
+            The ladder <span className="battle__count">{progress.beaten}/{progress.total}</span>
+          </h2>
+          <p className="panel__note">
+            One trainer at a time, each unlocked by the one before it. Progress is kept per
+            difficulty — clearing Easy does not hand you Hard.
+          </p>
+
+          <ol className="ladder">
+            {steps.map((step, index) => (
+              <li key={step.blueprint.id}>
                 <button
                   type="button"
-                  className={`trainer ${blueprint.id === option.id ? 'trainer--on' : ''}`}
-                  onClick={() => setBlueprint(option)}
+                  className={`trainer ${step.beaten ? 'trainer--beaten' : ''} ${
+                    step.locked ? 'trainer--locked' : ''
+                  } ${step.champion ? 'trainer--champion' : ''}`}
+                  disabled={step.locked}
+                  onClick={() => begin(step.blueprint)}
                   style={
                     {
-                      '--trainer-accent': `var(--type-${option.theme ?? 'normal'})`,
+                      '--trainer-accent': `var(--type-${step.blueprint.theme ?? 'normal'})`,
                     } as React.CSSProperties
                   }
                 >
-                  <span className="trainer__name">
-                    {option.title} {option.name}
+                  <span className="trainer__rank">{index + 1}</span>
+                  <TrainerSigil id={step.blueprint.id} initial={step.blueprint.name.charAt(0)} />
+
+                  <span className="trainer__body">
+                    <span className="trainer__name">
+                      {step.blueprint.title} {step.blueprint.name}
+                      {step.champion ? <span className="trainer__crown">Champion</span> : null}
+                    </span>
+                    <span className="trainer__theme">
+                      {step.blueprint.theme ? (
+                        <TypeBadge type={step.blueprint.theme} />
+                      ) : (
+                        'Mixed team'
+                      )}
+                      {step.blueprint.ace && tier.rares > 0 ? (
+                        <span className="trainer__ace">Legendary ace</span>
+                      ) : null}
+                    </span>
+                    <span className="trainer__blurb">
+                      {step.locked
+                        ? `Beat ${steps[index - 1]?.blueprint.name ?? 'the one before'} to unlock.`
+                        : step.blueprint.blurb}
+                    </span>
                   </span>
-                  <span className="trainer__theme">
-                    {option.theme ? <TypeBadge type={option.theme} /> : 'Mixed team'}
+
+                  <span className="trainer__status">
+                    {step.beaten ? 'Beaten' : step.locked ? 'Locked' : 'Challenge'}
                   </span>
-                  <span className="trainer__blurb">{option.blurb}</span>
                 </button>
               </li>
             ))}
-          </ul>
-
-          <div className="detail__actions">
-            <button type="button" className="button" onClick={begin}>
-              Battle {blueprint.title} {blueprint.name}
-            </button>
-            <button type="button" className="chip" onClick={() => setBlueprint(pickBlueprint())}>
-              Surprise me
-            </button>
-          </div>
+          </ol>
         </section>
       </div>
     )
@@ -346,11 +411,15 @@ export function BattlePage({ team, shiny }: Props) {
           <>
             <h2>{battle.winner === 'player' ? 'You win' : 'You lost'}</h2>
             <div className="detail__actions">
-              <button type="button" className="button" onClick={begin}>
+              <button
+                type="button"
+                className="button"
+                onClick={() => begin(battle.trainer.blueprint)}
+              >
                 Rematch
               </button>
               <button type="button" className="chip" onClick={() => setBattle(null)}>
-                Pick another trainer
+                Back to the ladder
               </button>
             </div>
           </>

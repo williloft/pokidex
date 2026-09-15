@@ -89,7 +89,23 @@ export interface Pokemon {
   forms: PokemonForm[]
   /** Names of the four moves it brings to a battle by default. */
   moves: string[]
+  /** Box legendaries and the like. Absent on datasets built before tiers. */
+  legendary?: boolean
+  /** Event-only Pokémon. Counted alongside legendaries for battle tiers. */
+  mythical?: boolean
+  /**
+   * This Pokémon's evolution line, base first, ending with itself.
+   *
+   * Dragonite carries [dratini, dragonair, dragonite]. It is what lets a
+   * trainer field the same six lines at every difficulty and simply bring a
+   * younger stage on Easy, rather than needing a separate roster per tier.
+   */
+  line?: number[]
 }
+
+/** Legendary or mythical — the battle tiers treat both the same way. */
+export const isRare = (pokemon: Pokemon): boolean =>
+  pokemon.legendary === true || pokemon.mythical === true
 
 export interface Generation {
   id: number

@@ -102,6 +102,62 @@ async function buildGenerationMap() {
   return { map, labels }
 }
 
+/**
+ * Walk an evolution chain, recording the path from the base form to each
+ * species on it. Branching lines (one base, several finals) give each branch
+ * its own path, which is what we want: a trainer fielding the middle stage of
+ * a branch should get the stage that actually leads to the one it picked.
+ */
+function walkChain(link, path, out) {
+  const id = idFromUrl(link.species.url)
+  const next = [...path, id]
+  out.set(id, next)
+  for (const child of link.evolves_to ?? []) walkChain(child, next, out)
+}
+
+/**
+ * Per-species facts that only the species endpoint knows: whether it is
+ * legendary or mythical, and where it sits in its evolution line.
+ *
+ * The battle tiers need both — one to keep box legendaries out of the lower
+ * difficulties, the other so a trainer can bring the same six lines at every
+ * difficulty and simply field a younger stage on Easy.
+ */
+async function buildSpeciesInfo(ids) {
+  const info = new Map()
+  const chainUrls = new Map()
+
+  await pool(
+    ids,
+    async (id) => {
+      const species = await get(`pokemon-species/${id}`)
+      info.set(id, {
+        legendary: species.is_legendary === true,
+        mythical: species.is_mythical === true,
+      })
+      if (species.evolution_chain?.url) chainUrls.set(id, species.evolution_chain.url)
+    },
+    (done, total) => process.stdout.write(`\r  species ${done}/${total}`),
+  )
+  process.stdout.write('\n')
+
+  // Many species share a chain, so fetch each one once rather than per member.
+  const lines = new Map()
+  const unique = [...new Set(chainUrls.values())]
+  await pool(
+    unique,
+    async (url) => {
+      const chain = await get(`evolution-chain/${idFromUrl(url)}`)
+      if (chain.chain) walkChain(chain.chain, [], lines)
+    },
+    (done, total) => process.stdout.write(`\r  chains ${done}/${total}`),
+  )
+  process.stdout.write('\n')
+
+  for (const [id, entry] of info) entry.line = lines.get(id) ?? [id]
+  return info
+}
+
 const REGIONAL_MARKERS = ['alola', 'galar', 'hisui', 'paldea']
 
 /**
@@ -360,6 +416,9 @@ async function main() {
   )
   process.stdout.write('\n')
 
+  console.log('→ species flags and evolution lines')
+  const speciesInfo = await buildSpeciesInfo([...new Set(raw.map((entry) => entry.speciesId))])
+
   console.log('→ move data')
   const moveNames = new Set()
   for (const entry of raw) {
@@ -399,12 +458,16 @@ async function main() {
       )
 
     const { speciesId: _s, speciesName: _n, isDefault: _d, learnable, ...core } = base
+    const species = speciesInfo.get(speciesId)
     pokemon.push({
       ...core,
       id: speciesId,
       generation: genMap.get(base.speciesName) ?? 1,
       forms,
       moves: chooseMoveset(core, learnable, moves),
+      legendary: species?.legendary === true,
+      mythical: species?.mythical === true,
+      line: species?.line ?? [speciesId],
     })
   }
 
@@ -443,6 +506,8 @@ async function main() {
   await writeFile(join(OUT_DIR, 'type-chart.json'), JSON.stringify({ types, chart }, null, 2))
 
   const movelessCount = pokemon.filter((entry) => entry.moves.length === 0).length
+  const rareCount = pokemon.filter((entry) => entry.legendary || entry.mythical).length
+  console.log(`  ${rareCount} legendary or mythical species flagged`)
 
   console.log(
     `✓ wrote ${pokemon.length} Pokémon (+${formCount} forms), ${types.length} types, ` +
