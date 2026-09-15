@@ -1140,9 +1140,14 @@ a {
   color: var(--text-dim);
 }
 
+/*
+ * Three across, always — the sixth card is the second row's third, so a team
+ * reads as two rows of three rather than four-and-two.
+ */
 .team-page__roster {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* The row gap carries the overhanging artwork as well as the spacing. */
   gap: 12px;
   margin: 0 0 20px;
   padding: 0;
@@ -1154,35 +1159,55 @@ a {
  * it will throw, and what you can do about it. Everything used to be centred
  * and the same weight, which made six of them a wall of pills.
  */
+/*
+ * The artwork steps out of the frame.
+ *
+ * The card carries a top margin the sprite is then pulled up into, so it
+ * overhangs the top edge instead of being boxed in. That margin plus the row
+ * gap is what keeps it clear of the card above.
+ */
 .roster {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  margin-top: 62px;
   padding: 14px;
   border: 1px solid var(--border);
   border-top: 3px solid var(--roster-accent);
   border-radius: var(--radius);
   background: var(--bg-raised);
+  overflow: visible;
 }
 
 .roster__head {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 12px;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
   text-decoration: none;
 }
 
+.roster__art {
+  display: block;
+  margin-top: -76px;
+  /* A pool of shadow under it, so it reads as standing in front of the card. */
+  filter: drop-shadow(0 10px 14px rgb(0 0 0 / 0.45));
+}
+
 .roster__head .sprite {
-  width: 96px;
-  height: 96px;
+  display: block;
+  width: 176px;
+  height: 176px;
   object-fit: contain;
 }
 
 .roster__identity {
   display: grid;
+  justify-items: center;
   gap: 4px;
   min-width: 0;
+  width: 100%;
 }
 
 .roster__number {
@@ -1203,6 +1228,7 @@ a {
 .roster__types {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 4px;
   margin-top: 2px;
 }
@@ -1303,7 +1329,33 @@ a {
 }
 
 .roster .swatches {
-  justify-content: flex-start;
+  justify-content: center;
+}
+
+@media (max-width: 1040px) {
+  .team-page__roster {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .team-page__roster {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* A smaller lift on a phone, where a tall overhang wastes the fold. */
+  .roster {
+    margin-top: 46px;
+  }
+
+  .roster__art {
+    margin-top: -58px;
+  }
+
+  .roster__head .sprite {
+    width: 140px;
+    height: 140px;
+  }
 }
 
 .threats {

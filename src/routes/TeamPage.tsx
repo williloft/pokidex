@@ -133,7 +133,10 @@ export function TeamPage({
                 }
                 viewTransition
               >
-                <Sprite id={view.id} alt={view.title} shiny={shiny} size={112} />
+                {/* Lifted clear of the card's top edge — see .roster__art. */}
+                <span className="roster__art">
+                  <Sprite id={view.id} alt={view.title} shiny={shiny} size={176} />
+                </span>
                 <span className="roster__identity">
                   <span className="roster__number">{dexNumber(pokemon.id)}</span>
                   <span className="roster__name">{view.title}</span>
