@@ -237,13 +237,14 @@ export function viewForTier(
    * Failing those, a special form of its own.
    *
    * `selectableViews` has already dropped the costume forms, so what is left
-   * here is a variant that genuinely changes typing or stats — the likes of
-   * Ash-Greninja or a Rotom appliance. There is no per-team limit on these:
-   * they are what that Pokémon is, not a transformation spent during a battle.
+   * under 'other' is a variant that genuinely changes typing or stats. There
+   * is no per-team limit on these — one Pokémon can only be in one of them.
+   *
+   * Regional forms are deliberately excluded: a trainer's roster names a
+   * species, and quietly handing them the Alolan one would make the team you
+   * scouted on the card different from the team that walks out.
    */
-  const special = views.find(
-    (view) => view.category !== 'default' && view.category !== 'mega' && view.category !== 'gmax',
-  )
+  const special = views.find((view) => view.category === 'other')
   return special ?? base
 }
 
@@ -253,39 +254,80 @@ export function viewForTier(
  * Names are resolved against whatever dex is loaded, so a sample or partial
  * dataset should still produce a full six rather than a trainer with three.
  */
+/** A small stable hash, so a trainer's fallback picks never move about. */
+function hashOf(text: string): number {
+  let hash = 0
+  for (let index = 0; index < text.length; index++) {
+    hash = (hash * 31 + text.charCodeAt(index)) >>> 0
+  }
+  return hash
+}
+
+/**
+ * Fill out a roster when a signature name is missing from the dataset.
+ *
+ * Deterministic on purpose: the ladder shows you each trainer's six before you
+ * pick a fight, and a random fallback would mean the team on the card was not
+ * the team that walked out. Spread by a hash of the trainer's id so two of
+ * them falling back do not land on the same Pokémon.
+ */
 function fillFrom(
   dex: readonly Pokemon[],
-  theme: string | null,
+  blueprint: TrainerBlueprint,
   taken: Set<number>,
   tier: Tier,
   need: number,
-  roll: () => number,
 ): Pokemon[] {
   if (need <= 0) return []
 
   const eligible = (entry: Pokemon) => !taken.has(entry.id) && (tier.rares > 0 || !isRare(entry))
-  const themed = theme
-    ? dex.filter((entry) => entry.types.includes(theme) && eligible(entry))
+  const themed = blueprint.theme
+    ? dex.filter((entry) => entry.types.includes(blueprint.theme!) && eligible(entry))
     : dex.filter(eligible)
-  const pool = themed.length >= need ? themed : dex.filter(eligible)
+  const pool = (themed.length >= need ? themed : dex.filter(eligible)).slice().sort(
+    (a, b) => statTotal(a.stats) - statTotal(b.stats) || a.id - b.id,
+  )
+  if (pool.length === 0) return []
 
   const picked: Pokemon[] = []
-  for (let attempt = 0; attempt < pool.length * 4 && picked.length < need; attempt++) {
-    const candidate = pool[Math.floor(roll() * pool.length)]
+  const stride = Math.max(1, Math.floor(pool.length / need))
+  const offset = hashOf(blueprint.id) % pool.length
+
+  for (let step = 0; step < pool.length && picked.length < need; step++) {
+    const candidate = pool[(offset + step * stride) % pool.length]
     if (!candidate || taken.has(candidate.id)) continue
     taken.add(candidate.id)
     picked.push(candidate)
   }
+
+  // A short stride can revisit the same slots; sweep for anything still free.
+  for (const candidate of pool) {
+    if (picked.length >= need) break
+    if (taken.has(candidate.id)) continue
+    taken.add(candidate.id)
+    picked.push(candidate)
+  }
+
   return picked
 }
 
-export function buildTrainer(
+export interface RosterMember {
+  entry: Pokemon
+  view: FormView
+}
+
+/**
+ * The six a trainer fields at this difficulty, in battle order.
+ *
+ * Split out from buildTrainer so the ladder can show the same roster it is
+ * about to send at you — scouting an opponent is only worth anything if what
+ * you scouted is what turns up.
+ */
+export function rosterFor(
   blueprint: TrainerBlueprint,
   dex: readonly Pokemon[],
   difficulty: Difficulty,
-  moves: MoveIndex = {},
-  roll: () => number = Math.random,
-): Trainer {
+): RosterMember[] {
   const tier = TIERS[difficulty]
   const byName = new Map(dex.map((entry) => [entry.name, entry]))
   const byId = new Map(dex.map((entry) => [entry.id, entry]))
@@ -306,7 +348,7 @@ export function buildTrainer(
     roster.push(entry)
   }
 
-  roster.push(...fillFrom(dex, blueprint.theme, taken, tier, TEAM_SIZE - roster.length, roll))
+  roster.push(...fillFrom(dex, blueprint, taken, tier, TEAM_SIZE - roster.length))
 
   const staged = roster.map((entry) => atStage(entry, tier.stageBack, byId))
 
@@ -333,16 +375,23 @@ export function buildTrainer(
   const views = new Map<number, FormView>()
   for (const entry of claimOrder) views.set(entry.id, viewForTier(entry, tier, budget))
 
+  return staged.map((entry) => ({
+    entry,
+    view: views.get(entry.id) ?? resolveForm(entry, null),
+  }))
+}
+
+export function buildTrainer(
+  blueprint: TrainerBlueprint,
+  dex: readonly Pokemon[],
+  difficulty: Difficulty,
+  moves: MoveIndex = {},
+): Trainer {
   return {
     blueprint,
     difficulty,
-    team: staged.map((entry, index) =>
-      makeBattler(
-        entry,
-        views.get(entry.id) ?? resolveForm(entry, null),
-        `foe-${entry.id}-${index}`,
-        moves,
-      ),
+    team: rosterFor(blueprint, dex, difficulty).map(({ entry, view }, index) =>
+      makeBattler(entry, view, `foe-${entry.id}-${index}`, moves),
     ),
   }
 }
@@ -370,6 +419,16 @@ export function fieldTeam(
   return members.map(({ pokemon, view }) => {
     const base = resolveForm(pokemon, null)
     if (view.category === 'default') return { view, note: null }
+
+    /*
+     * Regional forms are never touched.
+     *
+     * An Alolan Raichu is not a transformation spent during a battle — it is
+     * simply what that Pokémon is, the way a Charizard is a Charizard. The
+     * tiers gate Megas and Gigantamax because those are things you do once per
+     * battle; there is nothing to gate here.
+     */
+    if (view.category === 'regional') return { view, note: null }
 
     if (!tier.forms) {
       return { view: base, note: `${view.title} fights as ${base.title}` }

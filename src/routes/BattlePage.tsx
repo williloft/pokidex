@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useDex } from '../App'
 import { Sprite } from '../components/Sprite'
@@ -24,8 +24,10 @@ import { ladderProgress, ladderSteps, useLadder, withWin } from '../lib/ladder'
 import {
   buildTrainer,
   fieldTeam,
+  rosterFor,
   TIER_RULES,
   TIERS,
+  TRAINERS,
   type TrainerBlueprint,
 } from '../lib/trainers'
 import { TrainerSigil } from '../components/TrainerSigil'
@@ -150,6 +152,20 @@ export function BattlePage({ team, shiny }: Props) {
     // unchanged win is a no-op; only a new one moves it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settledWinner, blueprint, difficulty])
+
+  /*
+   * The six each trainer will actually field at this difficulty.
+   *
+   * rosterFor is deterministic, so what the card shows is what walks out —
+   * scouting an opponent is only worth anything if the two agree.
+   */
+  const previews = useMemo(
+    () =>
+      new Map(
+        TRAINERS.map((option) => [option.id, rosterFor(option, pokedex.pokemon, difficulty)]),
+      ),
+    [pokedex.pokemon, difficulty],
+  )
 
   if (team.length === 0) {
     return (
@@ -281,6 +297,24 @@ export function BattlePage({ team, shiny }: Props) {
                       {step.locked
                         ? `Beat ${steps[index - 1]?.blueprint.name ?? 'the one before'} to unlock.`
                         : step.blueprint.blurb}
+                    </span>
+
+                    {/* Who they will send, in the order they will send them. */}
+                    <span className="trainer__roster">
+                      {(previews.get(step.blueprint.id) ?? []).map((member) => (
+                        <span
+                          key={member.view.id}
+                          className={`trainer__member trainer__member--${member.view.category}`}
+                          title={member.view.title}
+                        >
+                          <Sprite
+                            id={member.view.id}
+                            alt={member.view.title}
+                            shiny={shiny}
+                            size={40}
+                          />
+                        </span>
+                      ))}
                     </span>
                   </span>
 

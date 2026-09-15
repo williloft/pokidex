@@ -540,18 +540,18 @@ describe('buildTrainer', () => {
   })
 
   it('fills a team of six without repeats', () => {
-    const trainer = buildTrainer(TRAINERS[0]!, dex, 'normal', moves, () => Math.random())
+    const trainer = buildTrainer(TRAINERS[0]!, dex, 'normal', moves)
     expect(trainer.team).toHaveLength(6)
     expect(new Set(trainer.team.map((member) => member.pokemon.id)).size).toBe(6)
   })
 
   it('respects the theme when the pool allows it', () => {
-    const trainer = buildTrainer(TRAINERS[0]!, dex, 'easy', moves, () => Math.random())
+    const trainer = buildTrainer(TRAINERS[0]!, dex, 'easy', moves)
     expect(trainer.team.every((member) => member.view.types.includes('water'))).toBe(true)
   })
 
   it('starts every member at full health, with moves in hand', () => {
-    const trainer = buildTrainer(TRAINERS[0]!, dex, 'normal', moves, () => Math.random())
+    const trainer = buildTrainer(TRAINERS[0]!, dex, 'normal', moves)
     expect(trainer.team.every((member) => !isDown(member) && member.hp === member.maxHp)).toBe(true)
     expect(trainer.team.every((member) => member.moves.length > 0)).toBe(true)
   })

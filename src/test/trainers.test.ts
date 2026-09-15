@@ -281,6 +281,60 @@ describe('fieldTeam', () => {
   it('says nothing about a Pokémon that was never in a special form', () => {
     expect(fieldTeam([plain], TIERS.easy)[0]?.note).toBeNull()
   })
+
+  /*
+   * A regional form is not a transformation you spend during a battle — it is
+   * simply what that Pokémon is. Flattening it read as "Alolan Raichu fights
+   * as Raichu", which is not a rule, it is losing your Pokémon.
+   */
+  it('never flattens a regional form, on any tier', () => {
+    const raichu = make({ id: 26, name: 'raichu', types: ['electric'], power: 70 })
+    raichu.forms = [
+      {
+        id: 10100,
+        name: 'raichu-alola',
+        label: 'Alola',
+        category: 'regional',
+        types: ['electric', 'psychic'],
+        stats: stats(70),
+        height: 7,
+        weight: 210,
+        abilities: [],
+        moves: ['fire-hit'],
+      },
+    ]
+    const alolan = { pokemon: raichu, view: resolveForm(raichu, 'raichu-alola') }
+
+    for (const tier of [TIERS.easy, TIERS.normal, TIERS.hard]) {
+      const [entry] = fieldTeam([alolan], tier)
+      expect(entry?.view.name).toBe('raichu-alola')
+      expect(entry?.note).toBeNull()
+    }
+  })
+
+  it('still counts a regional form against nothing, so Megas keep their slot', () => {
+    const raichu = make({ id: 26, name: 'raichu', types: ['electric'], power: 70 })
+    raichu.forms = [
+      {
+        id: 10100,
+        name: 'raichu-alola',
+        label: 'Alola',
+        category: 'regional',
+        types: ['electric', 'psychic'],
+        stats: stats(70),
+        height: 7,
+        weight: 210,
+        abilities: [],
+        moves: ['fire-hit'],
+      },
+    ]
+    const fielded = fieldTeam(
+      [{ pokemon: raichu, view: resolveForm(raichu, 'raichu-alola') }, mega],
+      TIERS.hard,
+    )
+    expect(fielded[0]?.view.name).toBe('raichu-alola')
+    expect(fielded[1]?.view.category).toBe('mega')
+  })
 })
 
 describe('the ladder', () => {
